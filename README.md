@@ -19,7 +19,7 @@ pip install -r requirements.txt
 ```
 
 ## Reproducing Results
-* Download our pre-processed dataset: [DTU](https://drive.google.com/open?id=1Mfx1oDoAzPbiqfseD8r02czPaNjUoUMJ), [Tanks & Temples](https://drive.google.com/open?id=12pvZ8nksx4yNBU1EN_vK6-2PNi7qyLmI) and ETH3D benchmark. Each dataset is already organized as follows:
+* Download our pre-processed dataset: [DTU's evaluation set](https://drive.google.com/open?id=1Mfx1oDoAzPbiqfseD8r02czPaNjUoUMJ), [Tanks & Temples](https://drive.google.com/open?id=12pvZ8nksx4yNBU1EN_vK6-2PNi7qyLmI) and ETH3D benchmark. Each dataset is already organized as follows:
 ```
 ├──scan1 (scene_name1)
 ├──scan2 (scene_name2) 
@@ -63,7 +63,7 @@ IMAGE_ID1                       # index of reference image 1
 * Test on GPU by running `sh eval.sh`. The code includes depth map estimation and depth fusion. The outputs are the point clouds in `ply` format.
 
 ## Training
-Download pre-processed [DTU training data](https://drive.google.com/file/d/1eDjh-_bxKKnEuz5h-HXS7EDJn59clx6V/view). The dataset is already organized as follows:
+Download pre-processed [DTU's training set](https://drive.google.com/file/d/1eDjh-_bxKKnEuz5h-HXS7EDJn59clx6V/view). The dataset is already organized as follows:
 ```
 root_directory
 ├──Cameras_1
