@@ -26,7 +26,7 @@ class MVSDataset(Dataset):
         with open(self.listfile) as f:
             scans = f.readlines()
             scans = [line.rstrip() for line in scans]
-            scans=scans[-11:]
+            
                   
         for scan in scans:
             pair_file = "{}/pair.txt".format(scan)

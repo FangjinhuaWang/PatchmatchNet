@@ -342,7 +342,7 @@ if __name__ == '__main__':
     with open(args.testlist) as f:
         scans = f.readlines()
         scans = [line.rstrip() for line in scans]
-        scans=scans[-11:]
+        
 
     for scan in scans:
         scan_id = int(scan[4:])
