@@ -1,6 +1,5 @@
 # PatchmatchNet
-official source code of paper: 
-### PatchmatchNet: Learned Multi-view Patchmatch Stereo
+official source code of paper 'PatchmatchNet: Learned Multi-view Patchmatch Stereo'
 
 ## Introduction
 PatchmatchNet is a novel cascade formulation of learning-based Patchmatch which aims at decreasing memory consumption and computation time for high-resolution multi-view stereo. If you find this project useful for your research, please cite: 
@@ -19,7 +18,7 @@ pip install -r requirements.txt
 ```
 
 ## Reproducing Results
-* Download our pre-processed dataset: [DTU's evaluation set](https://drive.google.com/open?id=1Mfx1oDoAzPbiqfseD8r02czPaNjUoUMJ), [Tanks & Temples](https://drive.google.com/open?id=12pvZ8nksx4yNBU1EN_vK6-2PNi7qyLmI) and ETH3D benchmark. Each dataset is already organized as follows:
+* Download our pre-processed dataset: [DTU's evaluation set](https://drive.google.com/file/d/135oKPefcPTsdtLRzoDAQtPpHuoIrpRI_/view?usp=sharing), [Tanks & Temples](https://drive.google.com/open?id=12pvZ8nksx4yNBU1EN_vK6-2PNi7qyLmI) and ETH3D benchmark. Each dataset is already organized as follows:
 ```
 ├──scan1 (scene_name1)
 ├──scan2 (scene_name2) 
@@ -71,7 +70,7 @@ root_directory
 └──Depths_raw
 ```
 * In ``train.sh``, set `MVS_TRAINING` as the root directory of dataset; set `--logdir` as the directory to store the checkpoints. 
-* Train the model by running `sh train.sh`
+* Train the model by running `sh train.sh`.
 
 ### Note:
 `--patchmatch_iteration` represents the number of iterations of Patchmatch on multi-stages (e.g., the default number `1,2,2` means 1 iteration on stage 1, 2 iterations on stage 2 and 2 iterations on stage 3). `--propagate_neighbors` represents the number of neighbors for adaptive propagation (e.g., the default number `0,8,16` means no propagation for Patchmatch on stage 1, using 8 neighbors for propagation on stage 2 and using 16 neighbors for propagation on stage 3). As explained in our paper (Section 6.3), we do not include adaptive propagation for the last iteration of Patchmatch on stage 1 due to the requirement of photometric consistency filtering. So in our default case (also for our pretrained model), we set the number of propagation neighbors on stage 1 as `0` since the number of iteration on stage 1 is `1`. If you want to train the model with more iterations on stage 1, change the corresponding number in `--propagate_neighbors` to include adaptive propagation for Patchmatch expect for the last iteration.
