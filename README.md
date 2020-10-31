@@ -18,7 +18,7 @@ pip install -r requirements.txt
 ```
 
 ## Reproducing Results
-* Download our pre-processed dataset: [DTU's evaluation set](https://drive.google.com/file/d/135oKPefcPTsdtLRzoDAQtPpHuoIrpRI_/view?usp=sharing), [Tanks & Temples](https://drive.google.com/open?id=12pvZ8nksx4yNBU1EN_vK6-2PNi7qyLmI) and ETH3D benchmark. Each dataset is already organized as follows:
+* Download our pre-processed dataset: [DTU's evaluation set](https://drive.google.com/file/d/1jN8yEQX0a-S22XwUjISM8xSJD39pFLL_/view?usp=sharing), [Tanks & Temples](https://drive.google.com/file/d/1gAfmeoGNEFl9dL4QcAU4kF0BAyTd-r8Z/view?usp=sharing) and ETH3D benchmark. Each dataset is already organized as follows:
 ```
 ├──scan1 (scene_name1)
 ├──scan2 (scene_name2) 
@@ -57,12 +57,12 @@ IMAGE_ID1                       # index of reference image 1
 ...
 ``` 
 
-* In ``eval.sh``, set `DTU_TESTING`, `ETH3d_TESTING` or `TANK_TESTING` as the root directory of corresponding dataset; set `--outdir` as the directory to store the reconstructed point clouds.
-* `CKPT_FILE` is the checkpoint file (our pretrained model is `checkpoints/model_000007.ckpt`), change it if you want to use your own model.
-* Test on GPU by running `sh eval.sh`. The code includes depth map estimation and depth fusion. The outputs are the point clouds in `ply` format.
+* In ``eval.sh``, set `DTU_TESTING`, `ETH3d_TESTING` or `TANK_TESTING` as the root directory of corresponding dataset, set `--outdir` as the directory to store the reconstructed point clouds, uncomment the evaluation command for corresponding dataset. 
+* `CKPT_FILE` is the checkpoint file (our pretrained model is `checkpoints/model_000007.ckpt`), change it if you want to use your own model. 
+* Test on GPU by running `sh eval.sh`. The code includes depth map estimation and depth fusion. The outputs are the point clouds in `ply` format. 
 
 ## Training
-Download pre-processed [DTU's training set](https://drive.google.com/file/d/1eDjh-_bxKKnEuz5h-HXS7EDJn59clx6V/view). The dataset is already organized as follows:
+Download pre-processed [DTU's training set]. The dataset is already organized as follows:
 ```
 root_directory
 ├──Cameras_1

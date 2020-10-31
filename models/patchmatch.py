@@ -35,7 +35,8 @@ class DepthInitialization(nn.Module):
             return depth_sample
             
         else:
-            # other Patchmatch, initialization is perfromed based on previous result
+            # other Patchmatch, initialization is performed based on previous result
+            # uniform samples in an inversed depth range
             if self.patchmatch_num_sample == 1:
                 return depth.detach()
             else:
@@ -133,7 +134,7 @@ class Evaluation(nn.Module):
                 warped_feature = warped_feature.view(batch, self.G, feature_channel//self.G, num_depth, height, width)
                 # group-wise correlation
                 similarity = (warped_feature * ref_feature.unsqueeze(3)).mean(2)
-                # pixel-wsie view weight
+                # pixel-wise view weight
                 view_weight = self.pixel_wise_net(similarity)
                 view_weights.append(view_weight)
                 
@@ -254,7 +255,7 @@ class PatchMatch(nn.Module):
                 nn.init.constant_(self.propa_conv.weight, 0.)
                 nn.init.constant_(self.propa_conv.bias, 0.)
 
-        # adaptive spatial cost aggregation
+        # adaptive spatial cost aggregation (adaptive evaluation)
         self.eval_conv = nn.Conv2d(self.propa_num_feature, 2 * self.evaluate_neighbors, kernel_size=3, stride=1, 
                                     padding=self.dilation, dilation=self.dilation, bias=True)
         nn.init.constant_(self.eval_conv.weight, 0.)
@@ -262,7 +263,7 @@ class PatchMatch(nn.Module):
         self.feature_weight_net = FeatureWeightNet(num_feature, self.evaluate_neighbors, self.G)
         
 
-    
+    # compute the offset for adaptive propagation
     def get_propagation_grid(self, batch, height, width, offset, device, img=None):
         if self.propagate_neighbors == 4:
             original_offset = [ [-self.dilation, 0],
@@ -313,7 +314,7 @@ class PatchMatch(nn.Module):
         grid = grid.view(batch, self.propagate_neighbors * height, width, 2)
         return grid
 
-        
+    # compute the offests for adaptive spatial cost aggregation in adaptive evaluation
     def get_evaluation_grid(self, batch, height, width, offset, device, img=None):
         
         if self.evaluate_neighbors==9:
@@ -370,7 +371,7 @@ class PatchMatch(nn.Module):
         device = ref_feature.get_device()
         batch, _, height, width = ref_feature.size()
         
-        # the learned 2D offsets for adaptive propagation
+        # the learned additional 2D offsets for adaptive propagation
         if self.propagate_neighbors > 0:
             # last iteration on stage 1 do not has propagation (photometric consistency filtering)
             if not (self.stage == 1 and self.patchmatch_iteration == 1):
@@ -378,7 +379,7 @@ class PatchMatch(nn.Module):
                 propa_offset = propa_offset.view(batch, 2 * self.propagate_neighbors, height*width)
                 propa_grid = self.get_propagation_grid(batch,height,width,propa_offset,device,img)
     
-        # the learned 2D offsets for adaptive evaluation
+        # the learned additional 2D offsets for adaptive spatial cost aggregation (adaptive evaluation)
         eval_offset = self.eval_conv(ref_feature)
         eval_offset = eval_offset.view(batch, 2 * self.evaluate_neighbors, height*width)
         eval_grid = self.get_evaluation_grid(batch,height,width,eval_offset,device,img)
@@ -389,7 +390,7 @@ class PatchMatch(nn.Module):
         # first iteration of Patchmatch
         iter = 1
         if self.random_initialization:
-            # first iteration on stage 3, random initialization, no propagation
+            # first iteration on stage 3, random initialization, no adaptive propagation
             depth_sample = self.depth_initialization(True, depth_min, depth_max, height, width, 
                                     self.patchmatch_interval_scale, device)
             # weights for adaptive spatial cost aggregation in adaptive evaluation
@@ -398,29 +399,31 @@ class PatchMatch(nn.Module):
             weight = weight * feature_weight.unsqueeze(1)
             weight = weight / torch.sum(weight, dim=2).unsqueeze(2)
             
-            # evaluation
+            # evaluation, outputs regressed depth map and pixel-wise view weights which will
+            # be used for other stages
             depth_sample, score, view_weights = self.evaluation(ref_feature, src_features, ref_proj, src_projs, 
                                         depth_sample, depth_min, depth_max, eval_grid, weight, view_weights)
             depth_sample = depth_sample.unsqueeze(1)
             depth_samples.append(depth_sample)
         else:
-            # other patchmatch, initialization based on previous result, has propagation
+            # other patchmatch, initialization based on previous result
             depth_sample = self.depth_initialization(False, depth_min, depth_max, 
                                 height, width, self.patchmatch_interval_scale, device, depth)
             del depth
 
+            # adaptive propagation
             if self.propagate_neighbors > 0:
                 # last iteration on stage 1 do not has propagation (photometric consistency filtering)
                 if not (self.stage == 1 and iter == self.patchmatch_iteration):
                     depth_sample = self.propagation(batch, height, width, depth_sample, propa_grid, depth_min, depth_max, 
                                             self.patchmatch_interval_scale)
-            
+            # weights for adaptive spatial cost aggregation in adaptive evaluation
             weight = depth_weight(depth_sample.detach(), depth_min, depth_max, eval_grid.detach(), self.patchmatch_interval_scale,
                                     self.evaluate_neighbors)
             weight = weight * feature_weight.unsqueeze(1)
             weight = weight / torch.sum(weight, dim=2).unsqueeze(2)
             
-            # evaluation
+            # evaluation, outputs regressed depth map
             depth_sample, score = self.evaluation(ref_feature, src_features, ref_proj, src_projs, 
                                         depth_sample, depth_min, depth_max, eval_grid, weight, view_weights)
             depth_sample = depth_sample.unsqueeze(1)
@@ -428,20 +431,22 @@ class PatchMatch(nn.Module):
 
 
         for iter in range(2, self.patchmatch_iteration+1):
+            # initialization based on previous result
             depth_sample = self.depth_initialization(False, depth_min, depth_max, height, width, self.patchmatch_interval_scale, device, depth_sample)
             
+            # adaptive propagation
             if self.propagate_neighbors > 0:
                 # last iteration on stage 1 do not has propagation (photometric consistency filtering)
                 if not (self.stage == 1 and iter == self.patchmatch_iteration):
                     depth_sample = self.propagation(batch, height, width, depth_sample, propa_grid, depth_min, depth_max, 
                                             self.patchmatch_interval_scale)
-            
+            # weights for adaptive spatial cost aggregation in adaptive evaluation
             weight = depth_weight(depth_sample.detach(), depth_min, depth_max, eval_grid.detach(), self.patchmatch_interval_scale,
                                     self.evaluate_neighbors)
             weight = weight * feature_weight.unsqueeze(1)
             weight = weight / torch.sum(weight, dim=2).unsqueeze(2)
             
-            
+            # evaluation, outputs regressed depth map
             depth_sample, score = self.evaluation(ref_feature, src_features, 
                                                 ref_proj, src_projs, depth_sample, depth_min, depth_max, eval_grid, weight, view_weights)
             
@@ -479,7 +484,8 @@ class SimilarityNet(nn.Module):
         return torch.sum(x1*weight, dim=2)
         
 
-
+# adaptive spatial cost aggregation
+# weight based on similarity of features of sampling points and center pixel
 class FeatureWeightNet(nn.Module):
     def __init__(self, num_feature, neighbors=9, G=4):
         super(FeatureWeightNet, self).__init__()
@@ -513,6 +519,8 @@ class FeatureWeightNet(nn.Module):
         
         return self.output(x)
 
+# adaptive spatial cost aggregation
+# weight based on depth difference of sampling points and center pixel
 def depth_weight(depth_sample, depth_min, depth_max, grid, patchmatch_interval_scale, evaluate_neighbors):
     neighbors = evaluate_neighbors
     batch,num_depth,height,width = depth_sample.size()
@@ -542,7 +550,7 @@ def depth_weight(depth_sample, depth_min, depth_max, grid, patchmatch_interval_s
     
     return x1.detach()
 
-
+# estimate pixel-wise view weight
 class PixelwiseNet(nn.Module):
     def __init__(self, G):
         super(PixelwiseNet, self).__init__()
