@@ -456,7 +456,8 @@ class PatchMatch(nn.Module):
         return depth_samples, score, view_weights
         
 
-
+# first, do convolution on aggregated cost among all the source views
+# second, perform adaptive spatial cost aggregation to get final cost
 class SimilarityNet(nn.Module):
     def __init__(self, G, neighbors = 9):
         super(SimilarityNet, self).__init__()
@@ -467,7 +468,10 @@ class SimilarityNet(nn.Module):
         self.similarity = nn.Conv3d(8, 1, kernel_size=1, stride=1, padding=0)
         
     def forward(self, x1, grid, weight):
-        # x1: [B, G, Ndepth, H, W]
+        # x1: [B, G, Ndepth, H, W], aggregated cost among all the source views with pixel-wise view weight
+        # grid: position of sampling points in adaptive spatial cost aggregation
+        # weight: weight of sampling points in adaptive spatial cost aggregation, combination of 
+        # feature weight and depth weight
         
         batch,G,num_depth,height,width = x1.size() 
         
@@ -499,6 +503,8 @@ class FeatureWeightNet(nn.Module):
         self.output = nn.Sigmoid()
 
     def forward(self, ref_feature, grid):
+        # ref_feature: reference feature map
+        # grid: position of sampling points in adaptive spatial cost aggregation
         batch,feature_channel,height,width = ref_feature.size()
         
         x = F.grid_sample(ref_feature, 
@@ -522,6 +528,7 @@ class FeatureWeightNet(nn.Module):
 # adaptive spatial cost aggregation
 # weight based on depth difference of sampling points and center pixel
 def depth_weight(depth_sample, depth_min, depth_max, grid, patchmatch_interval_scale, evaluate_neighbors):
+    # grid: position of sampling points in adaptive spatial cost aggregation
     neighbors = evaluate_neighbors
     batch,num_depth,height,width = depth_sample.size()
     # normalization
