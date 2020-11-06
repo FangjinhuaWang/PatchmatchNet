@@ -62,7 +62,7 @@ IMAGE_ID1                       # index of reference image 1
 * Test on GPU by running `sh eval.sh`. The code includes depth map estimation and depth fusion. The outputs are the point clouds in `ply` format. 
 
 ## Training
-Download pre-processed [DTU's training set]. The dataset is already organized as follows:
+Download pre-processed [DTU's training set](https://polybox.ethz.ch/index.php/s/ugDdJQIuZTk4S35). The dataset is already organized as follows:
 ```
 root_directory
 ├──Cameras_1
