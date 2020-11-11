@@ -7,7 +7,7 @@ tic
 Qdata=reducePts_haa(Qdata,dst);
 toc
 
-StlInName=[dataPath 'Points/stl/stl' sprintf('%03d',cSet) '_total.ply'];
+StlInName=[dataPath '/Points/stl/stl' sprintf('%03d',cSet) '_total.ply'];
 
 StlMesh = plyread(StlInName);  %STL points already reduced 0.2 mm neighbourhood density
 Qstl=[StlMesh.vertex.x StlMesh.vertex.y StlMesh.vertex.z]';
