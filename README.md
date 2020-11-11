@@ -60,6 +60,13 @@ IMAGE_ID1                       # index of reference image 1
 * In ``eval.sh``, set `DTU_TESTING`, `ETH3d_TESTING` or `TANK_TESTING` as the root directory of corresponding dataset, set `--outdir` as the directory to store the reconstructed point clouds, uncomment the evaluation command for corresponding dataset. 
 * `CKPT_FILE` is the checkpoint file (our pretrained model is `checkpoints/model_000007.ckpt`), change it if you want to use your own model. 
 * Test on GPU by running `sh eval.sh`. The code includes depth map estimation and depth fusion. The outputs are the point clouds in `ply` format. 
+* For quantitative evaluation on DTU dataset, download [SampleSet](http://roboimagedata.compute.dtu.dk/?page_id=36) and [Points](http://roboimagedata.compute.dtu.dk/?page_id=36). Unzip them and place `Points` folder in `SampleSet/MVS Data/`. The structure looks like:
+```
+SampleSet
+├──MVS Data
+      └──Points
+```
+In ``evaluations/dtu/BaseEvalMain_web.m``, set `dataPath` as path to `SampleSet/MVS Data/`, `plyPath` as directory that stores the reconstructed point clouds and `resultsPath` as directory to store the evaluation results. Then run ``evaluations/dtu/BaseEvalMain_web.m`` in matlab.
 
 ## Training
 Download pre-processed [DTU's training set](https://polybox.ethz.ch/index.php/s/ugDdJQIuZTk4S35). The dataset is already organized as follows:

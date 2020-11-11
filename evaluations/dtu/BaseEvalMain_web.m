@@ -51,7 +51,7 @@ for cIdx=1:length(UsedSets)
         
         disp('Saving results'), drawnow
         toc
-        %save(EvalName,'BaseEval');
+        save(EvalName,'BaseEval');
         toc
         
         % write obj-file of evaluation
@@ -77,17 +77,7 @@ for cIdx=1:length(UsedSets)
         
         
         BaseEval=load(EvalName);
-        
-%         disp('Saving results'), drawnow
-%         toc
-%         save(EvalName,'BaseEval');
-%         toc
-%         
-%         % write obj-file of evaluation
-% %         BaseEval2Obj_web(BaseEval,method_string, resultsPath)
-% %         toc
-%         time=clock;time(4:5), drawnow
-%     
+
         BaseEval.MaxDist=20; %outlier threshold of 20 mm
         
         BaseEval.FilteredDstl=BaseEval.BaseEval.Dstl(BaseEval.BaseEval.StlAbovePlane); %use only points that are above the plane 
