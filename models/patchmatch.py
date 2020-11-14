@@ -35,7 +35,7 @@ class DepthInitialization(nn.Module):
             return depth_sample
             
         else:
-            # other Patchmatch, initialization is performed based on previous result
+            # other Patchmatch, local perturbation is performed based on previous result
             # uniform samples in an inversed depth range
             if self.patchmatch_num_sample == 1:
                 return depth.detach()
