@@ -242,7 +242,7 @@ class PatchMatch(nn.Module):
         self.evaluation = Evaluation(self.G, self.stage, self.evaluate_neighbors, self.patchmatch_iteration)
         # adaptive propagation
         if self.propagate_neighbors > 0:
-            # last iteration on stage 1 do not has propagation (photometric consistency filtering)
+            # last iteration on stage 1 does not have propagation (photometric consistency filtering)
             if not (self.stage == 1 and self.patchmatch_iteration == 1):
                 self.propa_conv = nn.Conv2d(
                                 self.propa_num_feature,
@@ -373,7 +373,7 @@ class PatchMatch(nn.Module):
         
         # the learned additional 2D offsets for adaptive propagation
         if self.propagate_neighbors > 0:
-            # last iteration on stage 1 do not has propagation (photometric consistency filtering)
+            # last iteration on stage 1 does not have propagation (photometric consistency filtering)
             if not (self.stage == 1 and self.patchmatch_iteration == 1):
                 propa_offset = self.propa_conv(ref_feature)
                 propa_offset = propa_offset.view(batch, 2 * self.propagate_neighbors, height*width)
@@ -400,20 +400,20 @@ class PatchMatch(nn.Module):
             weight = weight / torch.sum(weight, dim=2).unsqueeze(2)
             
             # evaluation, outputs regressed depth map and pixel-wise view weights which will
-            # be used for other stages
+            # be used for subsequent iterations
             depth_sample, score, view_weights = self.evaluation(ref_feature, src_features, ref_proj, src_projs, 
                                         depth_sample, depth_min, depth_max, eval_grid, weight, view_weights)
             depth_sample = depth_sample.unsqueeze(1)
             depth_samples.append(depth_sample)
         else:
-            # other patchmatch, initialization based on previous result
+            # subsequent iterations, local perturbation based on previous result
             depth_sample = self.depth_initialization(False, depth_min, depth_max, 
                                 height, width, self.patchmatch_interval_scale, device, depth)
             del depth
 
             # adaptive propagation
             if self.propagate_neighbors > 0:
-                # last iteration on stage 1 do not has propagation (photometric consistency filtering)
+                # last iteration on stage 1 does not have propagation (photometric consistency filtering)
                 if not (self.stage == 1 and iter == self.patchmatch_iteration):
                     depth_sample = self.propagation(batch, height, width, depth_sample, propa_grid, depth_min, depth_max, 
                                             self.patchmatch_interval_scale)
@@ -431,12 +431,12 @@ class PatchMatch(nn.Module):
 
 
         for iter in range(2, self.patchmatch_iteration+1):
-            # initialization based on previous result
+            # local perturbation based on previous result
             depth_sample = self.depth_initialization(False, depth_min, depth_max, height, width, self.patchmatch_interval_scale, device, depth_sample)
             
             # adaptive propagation
             if self.propagate_neighbors > 0:
-                # last iteration on stage 1 do not has propagation (photometric consistency filtering)
+                # last iteration on stage 1 does not have propagation (photometric consistency filtering)
                 if not (self.stage == 1 and iter == self.patchmatch_iteration):
                     depth_sample = self.propagation(batch, height, width, depth_sample, propa_grid, depth_min, depth_max, 
                                             self.patchmatch_interval_scale)
