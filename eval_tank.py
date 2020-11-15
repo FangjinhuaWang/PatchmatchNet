@@ -343,7 +343,7 @@ if __name__ == '__main__':
     if args.split == "intermediate":
 
         scans = ['Family', 'Francis', 'Horse', 'Lighthouse',
-                'M60', 'Panther', 'Playground', 'Train'][0:1]
+                'M60', 'Panther', 'Playground', 'Train']
         
         image_sizes = {'Family': (1920, 1080),
                             'Francis': (1920, 1080),
