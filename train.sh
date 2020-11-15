@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # train on DTU's training set
-MVS_TRAINING="/home/fangjinhuawang/Desktop/mvs_training/dtu/"
+MVS_TRAINING="/home/mvs_training/dtu/"
 
 python train.py --dataset dtu_yao --batch_size 4 --epochs 8 \
 --patchmatch_iteration 1 2 2 --patchmatch_range 6 4 2 \

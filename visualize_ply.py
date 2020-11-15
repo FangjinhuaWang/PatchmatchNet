@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     if args.dataset == 'dtu':
-        path =  os.path.join(args.logdir, 'mvspatchmatchnet{:0>3}_l3.ply'.format(args.scan))
+        path =  os.path.join(args.logdir, 'patchmatchnet{:0>3}_l3.ply'.format(args.scan))
     else:
         path =  os.path.join(args.logdir, args.scan+'.ply')
     pcd = o3d.io.read_point_cloud(path)

@@ -38,11 +38,6 @@ class MVSDataset(Dataset):
                 for view_idx in range(self.num_viewpoint):
                     ref_view = int(f.readline().rstrip())
                     src_views = [int(x) for x in f.readline().rstrip().split()[1::2]]
-                    # robust training strategy
-                    if self.robust_train:
-                        num_src_views = len(src_views)
-                        index = random.sample(range(num_src_views), num_src_views)
-                        src_views = [src_views[i] for i in index]
                     # light conditions 0-6
                     for light_idx in range(7):
                         metas.append((scan, light_idx, ref_view, src_views))
@@ -132,8 +127,14 @@ class MVSDataset(Dataset):
         meta = self.metas[idx]
         scan, light_idx, ref_view, src_views = meta
         
-        
-        view_ids = [ref_view] + src_views[:self.nviews - 1]
+        # robust training strategy
+        if self.robust_train:
+            num_src_views = len(src_views)
+            index = random.sample(range(num_src_views), self.nviews - 1)
+            view_ids = [ref_view] + [src_views[i] for i in index]
+
+        else:
+            view_ids = [ref_view] + src_views[:self.nviews - 1]
 
         imgs_0 = []
         imgs_1 = []

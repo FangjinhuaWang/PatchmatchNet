@@ -5,10 +5,9 @@ clc
 
 % script to calculate distances have been measured for all included scans (UsedSets)
 
-dataPath='/home/fangjinhuawang/Desktop/SampleSet/MVS Data/';
-plyPath='/home/fangjinhuawang/Desktop/mvs/PatchmatchNet/outputs/';
-% plyPath='/home/fangjinhuawang/Desktop/mvs/CVP_MVSNet/outputs_pretrained/';
-resultsPath='/home/fangjinhuawang/Desktop/mvs/mvs_90/outputs/';
+dataPath='/home/SampleSet/MVS Data/';
+plyPath='/home/PatchmatchNet/outputs/';
+resultsPath='/home/PatchmatchNet/outputs/';
 
 method_string='patchmatchnet';
 light_string='l3'; % l3 is the setting with all lights on, l7 is randomly sampled between the 7 settings (index 0-6)
@@ -52,7 +51,7 @@ for cIdx=1:length(UsedSets)
         
         disp('Saving results'), drawnow
         toc
-        %save(EvalName,'BaseEval');
+        save(EvalName,'BaseEval');
         toc
         
         % write obj-file of evaluation
@@ -78,17 +77,7 @@ for cIdx=1:length(UsedSets)
         
         
         BaseEval=load(EvalName);
-        
-%         disp('Saving results'), drawnow
-%         toc
-%         save(EvalName,'BaseEval');
-%         toc
-%         
-%         % write obj-file of evaluation
-% %         BaseEval2Obj_web(BaseEval,method_string, resultsPath)
-% %         toc
-%         time=clock;time(4:5), drawnow
-%     
+
         BaseEval.MaxDist=20; %outlier threshold of 20 mm
         
         BaseEval.FilteredDstl=BaseEval.BaseEval.Dstl(BaseEval.BaseEval.StlAbovePlane); %use only points that are above the plane 

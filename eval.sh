@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # test on DTU's evaluation set
-DTU_TESTING="/home/fangjinhuawang/Desktop/dtu/"
+DTU_TESTING="/home/dtu/"
 CKPT_FILE="./checkpoints/model_000007.ckpt"
-python eval.py --dataset=dtu_yao_eval --batch_size=1 --n_views 5 --display \
+python eval.py --dataset=dtu_yao_eval --batch_size=1 --n_views 5 \
 --patchmatch_iteration 1 2 2 --patchmatch_range 6 4 2 \
 --patchmatch_num_sample 8 8 16 --propagate_neighbors 0 8 16 --evaluate_neighbors 9 9 9 \
 --patchmatch_interval_scale 0.005 0.0125 0.025 \
@@ -12,7 +12,7 @@ python eval.py --dataset=dtu_yao_eval --batch_size=1 --n_views 5 --display \
 
 # -------------------------------------------------------------------------------------
 # test on eth3d benchmark
-ETH3d_TESTING="/home/fangjinhuawang/Desktop/eth3d_high_res_test/"
+ETH3d_TESTING="/home/eth3d_high_res_test/"
 # python eval_eth.py --dataset=eth3d --split train --batch_size=1 --n_views 7 \
 # --patchmatch_iteration 1 2 2 --patchmatch_range 6 4 2 \
 # --patchmatch_num_sample 8 8 16 --propagate_neighbors 0 8 16 --evaluate_neighbors 9 9 9 \
@@ -22,7 +22,7 @@ ETH3d_TESTING="/home/fangjinhuawang/Desktop/eth3d_high_res_test/"
 
 # -------------------------------------------------------------------------------------
 # test on tanks & temples
-TANK_TESTING="/home/fangjinhuawang/Desktop/tankandtemples/"
+TANK_TESTING="/home/tankandtemples/"
 # python eval_tank.py --dataset=tanks --split intermediate --batch_size=1 --n_views 7 \
 # --patchmatch_iteration 1 2 2 --patchmatch_range 6 4 2 \
 # --patchmatch_num_sample 8 8 16 --propagate_neighbors 0 8 16 --evaluate_neighbors 9 9 9 \

@@ -7,14 +7,14 @@ clc
 % for all included scans (UsedSets)
 
 % modify the path to evaluate your models
-dataPath='/home/fangjinhuawang/Desktop/SampleSet/MVS Data/';
-resultsPath='/home/fangjinhuawang/Desktop/mvs/mvs_costvolume_patchmatch_1/outputs/';
+dataPath='/home/SampleSet/MVS Data/';
+resultsPath='/home/PatchmatchNet/outputs/';
 
 MaxDist=20; %outlier thresshold of 20 mm
 
 time=clock;
 
-method_string='mvspatchmatchnet';
+method_string='patchmatchnet';
 light_string='l3'; %'l7'; l3 is the setting with all lights on, l7 is randomly sampled between the 7 settings (index 0-6)
 representation_string='Points'; %mvs representation 'Points' or 'Surfaces'
 
