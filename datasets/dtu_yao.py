@@ -30,7 +30,7 @@ class MVSDataset(Dataset):
             scans = [line.rstrip() for line in scans]
 
         for scan in scans:
-            pair_file = "Cameras/pair.txt"
+            pair_file = "Cameras_1/pair.txt"
             
             with open(os.path.join(self.datapath, pair_file)) as f:
                 self.num_viewpoint = int(f.readline())

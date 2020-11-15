@@ -242,7 +242,7 @@ def filter_depth(scan_folder, out_folder, plyfilename, geo_pixel_thres, geo_dept
         # load the reference image
         ref_img, original_h, original_w = read_img(os.path.join(scan_folder, 'images/{:0>8}.jpg'.format(ref_view)),img_wh)
         ref_intrinsics, ref_extrinsics = read_cam_file(
-            os.path.join(scan_folder, 'cams/{:0>8}_cam.txt'.format(ref_view)))[0:2]
+            os.path.join(scan_folder, 'cams_1/{:0>8}_cam.txt'.format(ref_view)))[0:2]
         ref_intrinsics[0] *= img_wh[0]/original_w
         ref_intrinsics[1] *= img_wh[1]/original_h
         
@@ -264,7 +264,7 @@ def filter_depth(scan_folder, out_folder, plyfilename, geo_pixel_thres, geo_dept
             # camera parameters of the source view
             _, original_h, original_w = read_img(os.path.join(scan_folder, 'images/{:0>8}.jpg'.format(src_view)), img_wh)
             src_intrinsics, src_extrinsics = read_cam_file(
-                os.path.join(scan_folder, 'cams/{:0>8}_cam.txt'.format(src_view)))[0:2]
+                os.path.join(scan_folder, 'cams_1/{:0>8}_cam.txt'.format(src_view)))[0:2]
             src_intrinsics[0] *= img_wh[0]/original_w
             src_intrinsics[1] *= img_wh[1]/original_h
             
