@@ -25,7 +25,7 @@ class MVSDataset(Dataset):
         self.metas = []
         if self.split == 'intermediate':
             self.scans = ['Family', 'Francis', 'Horse', 'Lighthouse',
-                          'M60', 'Panther', 'Playground', 'Train'][0:1]
+                          'M60', 'Panther', 'Playground', 'Train']
             
             
             self.image_sizes = {'Family': (1920, 1080),

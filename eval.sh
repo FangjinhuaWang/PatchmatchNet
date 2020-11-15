@@ -22,7 +22,7 @@ ETH3d_TESTING="/home/eth3d_high_res_test/"
 
 # -------------------------------------------------------------------------------------
 # test on tanks & temples
-TANK_TESTING="/home/tankandtemples/"
+TANK_TESTING="/home/TankandTemples/"
 # python eval_tank.py --dataset=tanks --split intermediate --batch_size=1 --n_views 7 \
 # --patchmatch_iteration 1 2 2 --patchmatch_range 6 4 2 \
 # --patchmatch_num_sample 8 8 16 --propagate_neighbors 0 8 16 --evaluate_neighbors 9 9 9 \

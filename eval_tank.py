@@ -19,7 +19,7 @@ import cv2
 from plyfile import PlyData, PlyElement
 from PIL import Image
 import math
-import scipy.signal as signal
+# import scipy.signal as signal
 
 cudnn.benchmark = True
 
