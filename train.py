@@ -46,17 +46,17 @@ parser.add_argument('--seed', type=int, default=1, metavar='S', help='random see
 
 
 parser.add_argument('--patchmatch_iteration', nargs='+', type=int, default=[1,2,2], 
-        help='num of iteration of patchmatch on multi-stages')
-parser.add_argument('--patchmatch_num_sample', nargs='+', type=int, default=[1,3,5], 
-        help='num of uniform samples in initialization')
+        help='num of iteration of patchmatch on stages 1,2,3')
+parser.add_argument('--patchmatch_num_sample', nargs='+', type=int, default=[8,8,16], 
+        help='num of generated samples in local perturbation on stages 1,2,3')
 parser.add_argument('--patchmatch_interval_scale', nargs='+', type=float, default=[0.005, 0.0125, 0.025], 
-        help='normalized interval in inverse depth range to generate uniform samples in initialization')
-parser.add_argument('--patchmatch_range', nargs='+', type=int, default=[5,3,1], 
-        help='fixed offset of sampling points for propogation of patchmatch on multi-stages')
+        help='normalized interval in inverse depth range to generate samples in local perturbation')
+parser.add_argument('--patchmatch_range', nargs='+', type=int, default=[6,4,2], 
+        help='fixed offset of sampling points for propogation of patchmatch on stages 1,2,3')
 parser.add_argument('--propagate_neighbors', nargs='+', type=int, default=[0,8,16], 
-        help='num of neighbors for adaptive propagation')
+        help='num of neighbors for adaptive propagation on stages 1,2,3')
 parser.add_argument('--evaluate_neighbors', nargs='+', type=int, default=[9,9,9], 
-        help='num of neighbors for adaptive matching cost aggregation of adaptive evaluation')
+        help='num of neighbors for adaptive matching cost aggregation of adaptive evaluation on stages 1,2,3')
 
 
 # parse arguments and check
