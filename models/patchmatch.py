@@ -63,7 +63,7 @@ class DepthInitialization(nn.Module):
                 
 
 class Propagation(nn.Module):
-    def __init__(self, neighbors = 4):
+    def __init__(self, neighbors = 16):
         super(Propagation, self).__init__()
         self.neighbors = neighbors
         
@@ -95,7 +95,7 @@ class Propagation(nn.Module):
         
 
 class Evaluation(nn.Module):
-    def __init__(self,  G=4, stage=1, evaluate_neighbors=9, iterations=2):
+    def __init__(self,  G=8, stage=3, evaluate_neighbors=9, iterations=2):
         super(Evaluation, self).__init__()
         
         self.iterations = iterations
@@ -219,9 +219,9 @@ class Evaluation(nn.Module):
 
 
 class PatchMatch(nn.Module):
-    def __init__(self, random_initialization = False, propagation_out_range = 5, 
-                patchmatch_iteration = 2, patchmatch_num_sample = 1, patchmatch_interval_scale = 0.02,
-                num_feature = 8, G = 4, propagate_neighbors = 4, stage=1, evaluate_neighbors=9):
+    def __init__(self, random_initialization = False, propagation_out_range = 2, 
+                patchmatch_iteration = 2, patchmatch_num_sample = 16, patchmatch_interval_scale = 0.025,
+                num_feature = 64, G = 8, propagate_neighbors = 16, stage=3, evaluate_neighbors=9):
         super(PatchMatch, self).__init__()
         self.random_initialization = random_initialization
         self.depth_initialization = DepthInitialization(patchmatch_num_sample)
@@ -491,7 +491,7 @@ class SimilarityNet(nn.Module):
 # adaptive spatial cost aggregation
 # weight based on similarity of features of sampling points and center pixel
 class FeatureWeightNet(nn.Module):
-    def __init__(self, num_feature, neighbors=9, G=4):
+    def __init__(self, num_feature, neighbors=9, G=8):
         super(FeatureWeightNet, self).__init__()
         self.neighbors = neighbors
         self.G = G
