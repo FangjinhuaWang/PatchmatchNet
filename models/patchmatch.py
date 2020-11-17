@@ -99,7 +99,7 @@ class Evaluation(nn.Module):
         super(Evaluation, self).__init__()
         
         self.iterations = iterations
-        self.cur_iteration = 1
+        
         self.G = G
         self.stage = stage
         if self.stage == 3:
@@ -108,7 +108,7 @@ class Evaluation(nn.Module):
         self.similarity_net = SimilarityNet(self.G, evaluate_neighbors)
         
     
-    def forward(self, ref_feature, src_features, ref_proj, src_projs, depth_sample, depth_min, depth_max, grid=None, weight=None, view_weights=None):
+    def forward(self, ref_feature, src_features, ref_proj, src_projs, depth_sample, depth_min, depth_max, iter, grid=None, weight=None, view_weights=None):
         
         num_src_features = len(src_features)
         num_src_projs = len(src_projs)
@@ -162,7 +162,7 @@ class Evaluation(nn.Module):
             
             # depth regression: expectation
             depth_sample = torch.sum(depth_sample * score, dim = 1)
-            self.cur_iteration = self.cur_iteration+1
+
             return depth_sample, score, view_weights.detach()
         else:
             i=0
@@ -197,7 +197,7 @@ class Evaluation(nn.Module):
             score = torch.exp(score)
             
 
-            if self.stage == 1 and self.cur_iteration == self.iterations: 
+            if self.stage == 1 and iter == self.iterations: 
                 # depth regression: inverse depth regression
                 depth_index = torch.arange(0, num_depth, 1, device=device).view(1, num_depth, 1, 1)
                 depth_index = torch.sum(depth_index * score, dim = 1)
@@ -207,13 +207,13 @@ class Evaluation(nn.Module):
                 depth_sample = inverse_max_depth + depth_index / (num_depth - 1) * \
                                             (inverse_min_depth - inverse_max_depth)
                 depth_sample = 1.0 / depth_sample
-                self.cur_iteration = self.cur_iteration+1
+                
                 return depth_sample, score
             
             # depth regression: expectation
             else:
                 depth_sample = torch.sum(depth_sample * score, dim = 1)
-                self.cur_iteration = self.cur_iteration+1
+                
                 return depth_sample, score
             
 
@@ -402,7 +402,7 @@ class PatchMatch(nn.Module):
             # evaluation, outputs regressed depth map and pixel-wise view weights which will
             # be used for subsequent iterations
             depth_sample, score, view_weights = self.evaluation(ref_feature, src_features, ref_proj, src_projs, 
-                                        depth_sample, depth_min, depth_max, eval_grid, weight, view_weights)
+                                        depth_sample, depth_min, depth_max, iter, eval_grid, weight, view_weights)
             depth_sample = depth_sample.unsqueeze(1)
             depth_samples.append(depth_sample)
         else:
@@ -425,7 +425,7 @@ class PatchMatch(nn.Module):
             
             # evaluation, outputs regressed depth map
             depth_sample, score = self.evaluation(ref_feature, src_features, ref_proj, src_projs, 
-                                        depth_sample, depth_min, depth_max, eval_grid, weight, view_weights)
+                                        depth_sample, depth_min, depth_max, iter, eval_grid, weight, view_weights)
             depth_sample = depth_sample.unsqueeze(1)
             depth_samples.append(depth_sample)
 
@@ -448,7 +448,7 @@ class PatchMatch(nn.Module):
             
             # evaluation, outputs regressed depth map
             depth_sample, score = self.evaluation(ref_feature, src_features, 
-                                                ref_proj, src_projs, depth_sample, depth_min, depth_max, eval_grid, weight, view_weights)
+                                                ref_proj, src_projs, depth_sample, depth_min, depth_max, iter, eval_grid, weight, view_weights)
             
             depth_sample = depth_sample.unsqueeze(1)
             depth_samples.append(depth_sample)
