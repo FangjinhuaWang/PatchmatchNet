@@ -68,6 +68,14 @@ SampleSet
 ```
 In ``evaluations/dtu/BaseEvalMain_web.m``, set `dataPath` as path to `SampleSet/MVS Data/`, `plyPath` as directory that stores the reconstructed point clouds and `resultsPath` as directory to store the evaluation results. Then run ``evaluations/dtu/BaseEvalMain_web.m`` in matlab.
 
+The results look like:
+
+| Acc. (mm) | Comp. (mm) | Overall (mm) |
+|-----------|------------|--------------|
+| 0.427     | 0.277      | 0.352        |
+
+* For detailed quantitative results on Tanks & Temples and ETH3D, please check the leaderboards ([Tanks & Temples](https://www.tanksandtemples.org/details/1170/), [ETH3D](https://www.eth3d.net/result_details?id=216))
+
 ## Training
 Download pre-processed [DTU's training set](https://polybox.ethz.ch/index.php/s/ugDdJQIuZTk4S35). The dataset is already organized as follows:
 ```
