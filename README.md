@@ -20,6 +20,7 @@ pip install -r requirements.txt
 ## Reproducing Results
 * Download our pre-processed dataset: [DTU's evaluation set](https://drive.google.com/file/d/1jN8yEQX0a-S22XwUjISM8xSJD39pFLL_/view?usp=sharing), [Tanks & Temples](https://drive.google.com/file/d/1gAfmeoGNEFl9dL4QcAU4kF0BAyTd-r8Z/view?usp=sharing) and [ETH3D benchmark](https://drive.google.com/file/d/1NP8XM794ePfA-VcUqwAfjt3RwwINa421/view?usp=sharing). Each dataset is already organized as follows:
 ```
+root_directory
 ├──scan1 (scene_name1)
 ├──scan2 (scene_name2) 
       ├── images                 
