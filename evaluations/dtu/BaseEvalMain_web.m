@@ -76,14 +76,14 @@ for cIdx=1:length(UsedSets)
     else
         
         
-        BaseEval=load(EvalName);
+        load(EvalName);
 
         BaseEval.MaxDist=20; %outlier threshold of 20 mm
         
-        BaseEval.FilteredDstl=BaseEval.BaseEval.Dstl(BaseEval.BaseEval.StlAbovePlane); %use only points that are above the plane 
+        BaseEval.FilteredDstl=BaseEval.Dstl(BaseEval.StlAbovePlane); %use only points that are above the plane 
         BaseEval.FilteredDstl=BaseEval.FilteredDstl(BaseEval.FilteredDstl<BaseEval.MaxDist); % discard outliers
     
-        BaseEval.FilteredDdata=BaseEval.BaseEval.Ddata(BaseEval.BaseEval.DataInMask); %use only points that within mask
+        BaseEval.FilteredDdata=BaseEval.Ddata(BaseEval.DataInMask); %use only points that within mask
         BaseEval.FilteredDdata=BaseEval.FilteredDdata(BaseEval.FilteredDdata<BaseEval.MaxDist); % discard outliers
         
         fprintf("mean/median Data (acc.) %f/%f\n", mean(BaseEval.FilteredDdata), median(BaseEval.FilteredDdata));
@@ -94,3 +94,8 @@ for cIdx=1:length(UsedSets)
         result(cIdx,4) = median(BaseEval.FilteredDstl);
     end
 end
+
+mean_result=mean(result);
+fprintf("final evaluation result on all scans: acc.: %f, comp.: %f, overall: %f\n", mean_result(1), mean_result(3), (mean_result(1)+mean_result(3))/2);
+
+
