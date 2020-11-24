@@ -10,7 +10,7 @@ PatchmatchNet is a novel cascade formulation of learning-based Patchmatch which 
 
 ## Installation
 ### Requirements
-* python 3.6
+* python 3.7
 * CUDA >= 10.1
 
 ```
