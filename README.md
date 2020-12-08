@@ -84,6 +84,14 @@ The results look like:
 
 * For detailed quantitative results on Tanks & Temples and ETH3D, please check the leaderboards ([Tanks & Temples](https://www.tanksandtemples.org/details/1170/), [ETH3D](https://www.eth3d.net/result_details?id=216))
 
+## Evaluation on Custom Dataset
+* For evaluation, we support preparing the custom dataset from COLMAP's results. The script ``colmap_input.py`` (modified based on the script from [MVSNet](https://github.com/YoYo000/MVSNet)) converts COLMAP's sparse reconstruction results into the same format as the datasets that we provide. After reconstruction, COLMAP will generate a folder ``COLMAP/dense/``, which contains ``COLMAP/dense/images/`` and ``COLMAP/dense/sparse``. Then you need to run like this:
+```
+python colmap_input.py --folder COLMAP/dense/
+```
+* In ``datasets/custom.py`` and ``eval_custom.py``, you can change parameters such as ``img_wh`` for your own settings.
+* In ``eval.sh``, set `CUSTOM_TESTING` as the root directory of the dataset, set `--outdir` as the directory to store the reconstructed point clouds, uncomment the evaluation command. Test on GPU by running `sh eval.sh`.
+
 ## Training
 Download pre-processed [DTU's training set](https://polybox.ethz.ch/index.php/s/ugDdJQIuZTk4S35). The dataset is already organized as follows:
 ```
