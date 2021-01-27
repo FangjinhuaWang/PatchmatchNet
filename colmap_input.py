@@ -101,8 +101,6 @@ def read_cameras_binary(path_to_model_file):
             print(camera_id)
 
             model_id = camera_properties[1]
-            # print("model id")
-            # print(model_id)
             model_name = CAMERA_MODEL_IDS[camera_properties[1]].model_name
             width = camera_properties[2]
             height = camera_properties[3]
@@ -124,7 +122,7 @@ def read_images_text(path):
         void Reconstruction::ReadImagesText(const std::string& path)
         void Reconstruction::WriteImagesText(const std::string& path)
     """
-    images = {}
+    images = []
     with open(path, "r") as fid:
         while True:
             line = fid.readline()
@@ -142,10 +140,10 @@ def read_images_text(path):
                 xys = np.column_stack([tuple(map(float, elems[0::3])),
                                        tuple(map(float, elems[1::3]))])
                 point3D_ids = np.array(tuple(map(int, elems[2::3])))
-                images[image_id] = Image(
+                images.append(Image(
                     id=image_id, qvec=qvec, tvec=tvec,
                     camera_id=camera_id, name=image_name,
-                    xys=xys, point3D_ids=point3D_ids)
+                    xys=xys, point3D_ids=point3D_ids))
     return images
 
 
@@ -155,22 +153,16 @@ def read_images_binary(path_to_model_file):
         void Reconstruction::ReadImagesBinary(const std::string& path)
         void Reconstruction::WriteImagesBinary(const std::string& path)
     """
-    images = {}
+    images = []
     with open(path_to_model_file, "rb") as fid:
         num_reg_images = read_next_bytes(fid, 8, "Q")[0]
-        # print("img num")
-        # print(num_reg_images)
         for image_index in range(num_reg_images):
             binary_image_properties = read_next_bytes(
                 fid, num_bytes=64, format_char_sequence="idddddddi")
             image_id = binary_image_properties[0]
-            # print("image_id")
-            # print(image_id)
             qvec = np.array(binary_image_properties[1:5])
             tvec = np.array(binary_image_properties[5:8])
             camera_id = binary_image_properties[8]
-            # print("image_id_camera")
-            # print(camera_id)
             image_name = ""
             current_char = read_next_bytes(fid, 1, "c")[0]
             while current_char != b"\x00":   # look for the ASCII 0 entry
@@ -183,12 +175,10 @@ def read_images_binary(path_to_model_file):
             xys = np.column_stack([tuple(map(float, x_y_id_s[0::3])),
                                    tuple(map(float, x_y_id_s[1::3]))])
             point3D_ids = np.array(tuple(map(int, x_y_id_s[2::3])))
-            # print("point_3d")
-            # print(point3D_ids)
-            images[image_id] = Image(
+            images.append(Image(
                 id=image_id, qvec=qvec, tvec=tvec,
                 camera_id=camera_id, name=image_name,
-                xys=xys, point3D_ids=point3D_ids)
+                xys=xys, point3D_ids=point3D_ids))
     return images
 
 
@@ -228,8 +218,6 @@ def read_points3d_binary(path_to_model_file):
     points3D = {}
     with open(path_to_model_file, "rb") as fid:
         num_points = read_next_bytes(fid, 8, "Q")[0]
-        # print("num points")
-        # print(num_points)
         for point_line_index in range(num_points):
             binary_point_line_properties = read_next_bytes(
                 fid, num_bytes=43, format_char_sequence="QdddBBBd")
@@ -249,8 +237,6 @@ def read_points3d_binary(path_to_model_file):
                 error=error, image_ids=image_ids,
                 point2D_idxs=point2D_idxs)
     return points3D
-
-
 
 
 def read_model(path, ext):
@@ -296,26 +282,27 @@ def rotmat2qvec(R):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert colmap results into input for PatchmatchNet')
 
-    parser.add_argument('--folder', type=str, help='Project dir.')
+    parser.add_argument('--input_folder', type=str, help='Project dir.')
+    parser.add_argument('--output_folder', type=str, default="", help='Project dir.')
+    parser.add_argument('--num_rel_images', type=int, default=20, help='Related images')
     parser.add_argument('--theta0', type=float, default=5)
     parser.add_argument('--sigma1', type=float, default=1)
     parser.add_argument('--sigma2', type=float, default=10)
-
     parser.add_argument('--test', action='store_true', default=False, help='If set, do not write to file.')
     parser.add_argument('--convert_format', action='store_true', default=False, help='If set, convert image to jpg format.')
 
     args = parser.parse_args()
 
-    image_dir = os.path.join(args.folder, 'images')
-    model_dir = os.path.join(args.folder, 'sparse')
-    # model_dir = os.path.join(args.folder, 'dslr_calibration_undistorted')
-    cam_dir = os.path.join(args.folder, 'cams_1')
-    renamed_dir = os.path.join(args.folder, 'images')
-    # the colmap results may be stored in '.bin' or '.txt' format
-    # cameras, images, points3d = read_model(model_dir, '.txt')
-    cameras, images, points3d = read_model(model_dir, '.bin')
+    if (not args.output_folder):
+        args.output_folder = args.input_folder
 
-    num_images = len(list(images.items()))
+    image_dir = os.path.join(args.input_folder, 'images')
+    model_dir = os.path.join(args.input_folder, 'sparse')
+    cam_dir = os.path.join(args.output_folder, 'cams')
+    renamed_dir = os.path.join(args.output_folder, 'images')
+
+    cameras, images, points3d = read_model(model_dir, '.bin')
+    num_images = len(images)
 
     param_type = {
         'SIMPLE_PINHOLE': ['f', 'cx', 'cy'],
@@ -335,7 +322,6 @@ if __name__ == '__main__':
     intrinsic = {}
     for camera_id, cam in cameras.items():
         params_dict = {key: value for key, value in zip(param_type[cam.model], cam.params)}
-        print(cam.model)
         if 'f' in param_type[cam.model]:
             params_dict['fx'] = params_dict['f']
             params_dict['fy'] = params_dict['f']
@@ -345,51 +331,48 @@ if __name__ == '__main__':
             [0, 0, 1]
         ])
         intrinsic[camera_id] = i
-    print('intrinsic[0]\n', intrinsic[0], end='\n\n')
+    print('intrinsic[1]\n', intrinsic[1], end='\n\n')
 
     # extrinsic
-    extrinsic = {}
-    for image_id, image in images.items():
+    extrinsic = []
+    for i in range(num_images):
         e = np.zeros((4, 4))
-        e[:3, :3] = qvec2rotmat(image.qvec)
-        e[:3, 3] = image.tvec
+        e[:3, :3] = qvec2rotmat(images[i].qvec)
+        e[:3, 3] = images[i].tvec
         e[3, 3] = 1
-        extrinsic[image_id] = e
-    print('extrinsic[1]\n', extrinsic[1], end='\n\n')
+        extrinsic.append(e)
+    print('extrinsic[0]\n', extrinsic[0], end='\n\n')
 
     # depth range and interval
-    depth_ranges = {}
+    depth_ranges = []
     for i in range(num_images):
         zs = []
-        for p3d_id in images[i+1].point3D_ids:
-            
+        for p3d_id in images[i].point3D_ids:
             if p3d_id == -1:
                 continue
-            
-            transformed = np.matmul(extrinsic[i+1], [points3d[p3d_id].xyz[0], points3d[p3d_id].xyz[1], points3d[p3d_id].xyz[2], 1])
-            zs.append(np.asscalar(transformed[2]))
+            transformed = np.matmul(extrinsic[i], [points3d[p3d_id].xyz[0], points3d[p3d_id].xyz[1], points3d[p3d_id].xyz[2], 1])
+            zs.append(transformed[2].item())
         zs_sorted = sorted(zs)
         # relaxed depth range
         depth_min = zs_sorted[int(len(zs) * .01)]
         depth_max = zs_sorted[int(len(zs) * .99)]
         
         
-        depth_ranges[i+1] = (depth_min, depth_max)
-    print('depth_ranges[1]\n', depth_ranges[1], end='\n\n')
+        depth_ranges.append((depth_min, depth_max))
+    print('depth_ranges[0]\n', depth_ranges[0], end='\n\n')
 
     # view selection
-    score = np.zeros((len(images), len(images)))
+    score = np.zeros((num_images, num_images))
     queue = []
-    for i in range(len(images)):
-        for j in range(i + 1, len(images)):
+    for i in range(num_images):
+        for j in range(i + 1, num_images):
             queue.append((i, j))
-    def calc_score(inputs):
-        i, j = inputs
-        id_i = images[i+1].point3D_ids
-        id_j = images[j+1].point3D_ids
+    def calc_score(i, j):
+        id_i = images[i].point3D_ids
+        id_j = images[j].point3D_ids
         id_intersect = [it for it in id_i if it in id_j]
-        cam_center_i = -np.matmul(extrinsic[i+1][:3, :3].transpose(), extrinsic[i+1][:3, 3:4])[:, 0]
-        cam_center_j = -np.matmul(extrinsic[j+1][:3, :3].transpose(), extrinsic[j+1][:3, 3:4])[:, 0]
+        cam_center_i = -np.matmul(extrinsic[i][:3, :3].transpose(), extrinsic[i][:3, 3:4])[:, 0]
+        cam_center_j = -np.matmul(extrinsic[j][:3, :3].transpose(), extrinsic[j][:3, 3:4])[:, 0]
         score = 0
         for pid in id_intersect:
             if pid == -1:
@@ -397,16 +380,15 @@ if __name__ == '__main__':
             p = points3d[pid].xyz
             theta = (180 / np.pi) * np.arccos(np.dot(cam_center_i - p, cam_center_j - p) / np.linalg.norm(cam_center_i - p) / np.linalg.norm(cam_center_j - p))
             score += np.exp(-(theta - args.theta0) * (theta - args.theta0) / (2 * (args.sigma1 if theta <= args.theta0 else args.sigma2) ** 2))
-        return i, j, score
-    p = mp.Pool(processes=mp.cpu_count())
-    result = p.map(calc_score, queue)
-    for i, j, s in result:
+        return score
+    for i, j in queue:
+        s = calc_score(i, j)
         score[i, j] = s
         score[j, i] = s
     view_sel = []
-    for i in range(len(images)):
+    for i in range(num_images):
         sorted_score = np.argsort(score[i])[::-1]
-        view_sel.append([(k, score[i, k]) for k in sorted_score[:10]])
+        view_sel.append([(k, score[i, k]) for k in sorted_score[:args.num_rel_images]])
     print('view_sel[0]\n', view_sel[0], end='\n\n')
 
     # write
@@ -414,20 +396,24 @@ if __name__ == '__main__':
         os.makedirs(cam_dir)
     except os.error:
         print(cam_dir + ' already exist.')
+    try:
+        os.makedirs(renamed_dir)
+    except os.error:
+        print(renamed_dir + ' already exist.')
     for i in range(num_images):
         with open(os.path.join(cam_dir, '%08d_cam.txt' % i), 'w') as f:
             f.write('extrinsic\n')
             for j in range(4):
                 for k in range(4):
-                    f.write(str(extrinsic[i+1][j, k]) + ' ')
+                    f.write(str(extrinsic[i][j, k]) + ' ')
                 f.write('\n')
             f.write('\nintrinsic\n')
             for j in range(3):
                 for k in range(3):
-                    f.write(str(intrinsic[images[i+1].camera_id][j, k]) + ' ')
+                    f.write(str(intrinsic[images[i].camera_id][j, k]) + ' ')
                 f.write('\n')
-            f.write('\n%f %f \n' % (depth_ranges[i+1][0], depth_ranges[i+1][1]))
-    with open(os.path.join(args.folder, 'pair.txt'), 'w') as f:
+            f.write('\n%f %f \n' % (depth_ranges[i][0], depth_ranges[i][1]))
+    with open(os.path.join(args.output_folder, 'pair.txt'), 'w') as f:
         f.write('%d\n' % len(images))
         for i, sorted_score in enumerate(view_sel):
             f.write('%d\n%d ' % (i, len(sorted_score)))
@@ -436,7 +422,7 @@ if __name__ == '__main__':
             f.write('\n')
     for i in range(num_images):
         if args.convert_format:
-            img = cv2.imread(os.path.join(image_dir, images[i+1].name))
+            img = cv2.imread(os.path.join(image_dir, images[i].name))
             cv2.imwrite(os.path.join(renamed_dir, '%08d.jpg' % i), img)
         else:
-            shutil.copyfile(os.path.join(image_dir, images[i+1].name), os.path.join(renamed_dir, '%08d.jpg' % i))
+            shutil.copyfile(os.path.join(image_dir, images[i].name), os.path.join(renamed_dir, '%08d.jpg' % i))
