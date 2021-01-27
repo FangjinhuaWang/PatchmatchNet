@@ -33,6 +33,7 @@ parser.add_argument('--split', default='test', help='select data')
 
 parser.add_argument('--batch_size', type=int, default=1, help='testing batch size')
 parser.add_argument('--n_views', type=int, default=5, help='num of view')
+parser.add_argument('--image_wh', nargs=2, type=int, default=[640,480], help='image size')
 
 
 parser.add_argument('--loadckpt', default=None, help='load a specific checkpoint')
@@ -115,10 +116,10 @@ def read_pair_file(filename):
 
 
 # run MVS model to save depth maps
-def save_depth():
+def save_depth(img_wh):
     # dataset, dataloader
     MVSDataset = find_dataset_def(args.dataset)
-    test_dataset = MVSDataset(args.testpath, args.n_views)
+    test_dataset = MVSDataset(args.testpath, args.n_views, img_wh)
     TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 
     # model
@@ -333,10 +334,9 @@ def filter_depth(scan_folder, out_folder, plyfilename, geo_pixel_thres, geo_dept
 
 
 if __name__ == '__main__':
+    img_wh = (args.image_wh[0], args.image_wh[1])
     # step1. save all the depth maps and the masks in outputs directory
-    save_depth()
-    # the size of image input for PatchmatchNet, maybe downsampled
-    img_wh = (736,416)
+    save_depth(img_wh)
     # number of source images need to be consistent with in geometric consistency filtering
     geo_mask_thres = 2
 
