@@ -127,24 +127,15 @@ def save_depth(img_wh):
                 propagation_range = args.patchmatch_range, patchmatch_iteration=args.patchmatch_iteration, 
                 patchmatch_num_sample = args.patchmatch_num_sample, 
                 propagate_neighbors=args.propagate_neighbors, evaluate_neighbors=args.evaluate_neighbors)
-    #model = nn.DataParallel(model)
+    model = nn.DataParallel(model)
     model.cuda()
 
     # load checkpoint file specified by args.loadckpt
     print("loading model {}".format(args.loadckpt))
     state_dict = torch.load(args.loadckpt)
-    model.load_state_dict(state_dict['model'], strict=False)
+    model.load_state_dict(state_dict['model'])
     model.eval()
-    with torch.no_grad():
-        for bidx, smp in enumerate(TestImgLoader):
-            smp_cuda = tocuda(smp)
-            break
-    print(smp_cuda["imgs"]['stage_0'].shape)
-    print(smp_cuda["proj_matrices"]['stage_0'].shape)
-    print(smp_cuda["depth_min"].shape)
-    print(smp_cuda["depth_max"].shape)
-    torch.onnx.export(model, (smp_cuda["imgs"], smp_cuda["proj_matrices"], smp_cuda["depth_min"], smp_cuda["depth_max"]), os.path.join(args.outdir, 'model.onnx'), opset_version=11)
-
+    
     with torch.no_grad():
         for batch_idx, sample in enumerate(TestImgLoader):
             start_time = time.time()
@@ -351,7 +342,7 @@ if __name__ == '__main__':
 
         
     # step2. filter saved depth maps and reconstruct point cloud
-    # filter_depth(args.testpath, args.outdir, os.path.join(args.outdir, 'custom.ply'), 
-                # args.geo_pixel_thres, args.geo_depth_thres, args.photo_thres, img_wh, geo_mask_thres) 
+    filter_depth(args.testpath, args.outdir, os.path.join(args.outdir, 'custom.ply'), 
+                args.geo_pixel_thres, args.geo_depth_thres, args.photo_thres, img_wh, geo_mask_thres) 
     
 
