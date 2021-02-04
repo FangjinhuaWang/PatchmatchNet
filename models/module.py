@@ -92,7 +92,7 @@ def differentiable_warping(src_fea, src_proj, ref_proj, depth_samples):
 # get expected value, soft argmin
 # return: depth [B, 1, H, W]
 def depth_regression(p, depth_values):
-    depth_values = depth_values.view(depth_values.shape[0], depth_values.shape[1], 1, 1)
+    depth_values = depth_values.view(*depth_values.shape, 1, 1)
     depth = torch.sum(p * depth_values, 1)
     depth = depth.unsqueeze(1)
     return depth

@@ -297,11 +297,9 @@ if __name__ == '__main__':
         args.output_folder = args.input_folder
 
     image_dir = os.path.join(args.input_folder, 'images')
-    depth_dir = os.path.join(args.input_folder, 'stereo/depth_maps')
     model_dir = os.path.join(args.input_folder, 'sparse')
     cam_dir = os.path.join(args.output_folder, 'cams')
     renamed_dir = os.path.join(args.output_folder, 'images')
-    depth_est_dir = os.path.join(args.output_folder, 'depth_est')
 
     cameras, images, points3d = read_model(model_dir, '.bin')
     num_images = len(images)
@@ -402,10 +400,6 @@ if __name__ == '__main__':
         os.makedirs(renamed_dir)
     except os.error:
         print(renamed_dir + ' already exist.')
-    try:
-        os.makedirs(depth_est_dir)
-    except os.error:
-        print(depth_est_dir + ' already exist.')
     for i in range(num_images):
         with open(os.path.join(cam_dir, '%08d_cam.txt' % i), 'w') as f:
             f.write('extrinsic\n')
@@ -427,7 +421,6 @@ if __name__ == '__main__':
                 f.write('%d %f ' % (image_id, s))
             f.write('\n')
     for i in range(num_images):
-        shutil.copyfile(os.path.join(depth_dir, images[i].name + '.geometric.bin'), os.path.join(depth_est_dir, '%08d.bin' % i))
         if args.convert_format:
             img = cv2.imread(os.path.join(image_dir, images[i].name))
             cv2.imwrite(os.path.join(renamed_dir, '%08d.jpg' % i), img)
