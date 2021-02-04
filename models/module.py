@@ -71,8 +71,8 @@ def differentiable_warping(src_fea, src_proj, ref_proj, depth_samples):
         proj_xyz = rot_depth_xyz + trans.view(batch, 3, 1, 1)  # [B, 3, Ndepth, H*W]
         # avoid negative depth
         negative_depth_mask = proj_xyz[:, 2:] <= 1e-3
-        proj_xyz[:, 0:1][negative_depth_mask] = width
-        proj_xyz[:, 1:2][negative_depth_mask] = height
+        proj_xyz[:, 0:1][negative_depth_mask] = float(width)
+        proj_xyz[:, 1:2][negative_depth_mask] = float(height)
         proj_xyz[:, 2:3][negative_depth_mask] = 1
         proj_xy = proj_xyz[:, :2, :, :] / proj_xyz[:, 2:3, :, :]  # [B, 2, Ndepth, H*W]
         proj_x_normalized = proj_xy[:, 0, :, :] / ((width - 1) / 2) - 1 # [B, Ndepth, H*W]
