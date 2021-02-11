@@ -249,3 +249,9 @@ def patchmatchnet_loss(depth_patchmatch, refined_depth, depth_gt, mask):
     loss = loss + F.smooth_l1_loss(depth1, depth2, reduction='mean')
     
     return loss
+
+class PatchMatchContainer(torch.nn.Module):
+    def __init__(self, state):
+        super(PatchMatchContainer, self).__init__()
+        for key in state:
+            setattr(self, key, state[key])

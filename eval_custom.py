@@ -12,9 +12,10 @@ import numpy as np
 import time
 from datasets import find_dataset_def
 from models import *
+from models.net import *
 from utils import *
 import sys
-from datasets.data_io import read_pfm, save_pfm
+from datasets.data_io import read_image, save_image
 import cv2
 from plyfile import PlyData, PlyElement
 from PIL import Image
@@ -56,6 +57,8 @@ parser.add_argument('--evaluate_neighbors', nargs='+', type=int, default=[9,9,9]
 parser.add_argument('--geo_pixel_thres', type=float, default=1, help='pixel threshold for geometric consistency filtering')
 parser.add_argument('--geo_depth_thres', type=float, default=0.01, help='depth threshold for geometric consistency filtering')
 parser.add_argument('--photo_thres', type=float, default=0.8, help='threshold for photometric consistency filtering')
+parser.add_argument('--geo_thres', type=int, default=3, help='threshold for photometric consistency filtering')
+parser.add_argument('--file_format', default='bin', help='File format for depth maps; supports pfm and bin')
 
 # parse arguments and check
 args = parser.parse_args()
@@ -135,6 +138,8 @@ def save_depth(img_wh):
     state_dict = torch.load(args.loadckpt)
     model.load_state_dict(state_dict['model'])
     model.eval()
+    #cn = torch.jit.script(PatchMatchContainer(state_dict['model']))
+    #cn.save(args.loadckpt + '.jit')
     
     with torch.no_grad():
         for batch_idx, sample in enumerate(TestImgLoader):
@@ -151,15 +156,15 @@ def save_depth(img_wh):
             # save depth maps and confidence maps
             for filename, depth_est, photometric_confidence in zip(filenames, outputs["refined_depth"]['stage_0'],
                                                                 outputs["photometric_confidence"]):
-                depth_filename = os.path.join(args.outdir, filename.format('depth_est', '.pfm'))
-                confidence_filename = os.path.join(args.outdir, filename.format('confidence', '.pfm'))
+                depth_filename = os.path.join(args.outdir, filename.format('depth_est', '.' + args.file_format))
+                confidence_filename = os.path.join(args.outdir, filename.format('confidence', '.' + args.file_format))
                 os.makedirs(depth_filename.rsplit('/', 1)[0], exist_ok=True)
                 os.makedirs(confidence_filename.rsplit('/', 1)[0], exist_ok=True)
                 # save depth maps
                 depth_est = np.squeeze(depth_est, 0)
-                save_pfm(depth_filename, depth_est)
+                save_image(depth_filename, depth_est)
                 # save confidence maps
-                save_pfm(confidence_filename, photometric_confidence)
+                save_image(confidence_filename, photometric_confidence)
                 
 
 
@@ -248,10 +253,10 @@ def filter_depth(scan_folder, out_folder, plyfilename, geo_pixel_thres, geo_dept
         ref_intrinsics[1] *= img_wh[1]/original_h
         
         # load the estimated depth of the reference view
-        ref_depth_est = read_pfm(os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(ref_view)))[0]
+        ref_depth_est = ref_depth_est = read_image(os.path.join(out_folder, 'depth_est/{:0>8}.{}'.format(ref_view, args.file_format)))[0]
         ref_depth_est = np.squeeze(ref_depth_est, 2)
         # load the photometric mask of the reference view
-        confidence = read_pfm(os.path.join(out_folder, 'confidence/{:0>8}.pfm'.format(ref_view)))[0]
+         confidence = read_image(os.path.join(out_folder, 'confidence/{:0>8}.{}'.format(ref_view, args.file_format)))[0]
         
         photo_mask = confidence > photo_thres
         photo_mask = np.squeeze(photo_mask, 2)
@@ -270,7 +275,7 @@ def filter_depth(scan_folder, out_folder, plyfilename, geo_pixel_thres, geo_dept
             src_intrinsics[1] *= img_wh[1]/original_h
             
             # the estimated depth of the source view
-            src_depth_est = read_pfm(os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(src_view)))[0]
+            src_depth_est = read_image(os.path.join(out_folder, 'depth_est/{:0>8}.{}'.format(src_view, args.file_format)))[0]
 
             geo_mask, depth_reprojected, x2d_src, y2d_src = check_geometric_consistency(ref_depth_est, ref_intrinsics, ref_extrinsics,
                                                                       src_depth_est,
@@ -338,7 +343,7 @@ if __name__ == '__main__':
     # step1. save all the depth maps and the masks in outputs directory
     save_depth(img_wh)
     # number of source images need to be consistent with in geometric consistency filtering
-    geo_mask_thres = 2
+    geo_mask_thres = args.geo_thres
 
         
     # step2. filter saved depth maps and reconstruct point cloud
