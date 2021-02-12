@@ -389,9 +389,7 @@ class PatchMatch(nn.Module):
             # evaluation, outputs regressed depth map and pixel-wise view weights which will
             # be used for subsequent iterations
             depth_sample, score, view_weights = self.evaluation(ref_feature, src_features, ref_proj, src_projs,
-                                                                depth_sample, depth_min, depth_max, iteration,
-                                                                eval_grid,
-                                                                weight, view_weights)
+                                                                depth_sample, iteration, eval_grid, weight, view_weights)
             depth_sample = depth_sample.unsqueeze(1)
             depth_samples.append(depth_sample)
         else:
@@ -404,9 +402,7 @@ class PatchMatch(nn.Module):
             if self.propagate_neighbors > 0:
                 # last iteration on stage 1 does not have propagation (photometric consistency filtering)
                 if not (self.stage == 1 and iteration == self.patchmatch_iteration):
-                    depth_sample = self.propagation(batch, height, width, depth_sample, propa_grid, depth_min,
-                                                    depth_max,
-                                                    self.patchmatch_interval_scale)
+                    depth_sample = self.propagation(batch, height, width, depth_sample, propa_grid)
             # weights for adaptive spatial cost aggregation in adaptive evaluation
             weight = depth_weight(depth_sample.detach(), depth_min, depth_max, eval_grid.detach(),
                                   self.patchmatch_interval_scale,
@@ -416,8 +412,7 @@ class PatchMatch(nn.Module):
 
             # evaluation, outputs regressed depth map
             depth_sample, score = self.evaluation(ref_feature, src_features, ref_proj, src_projs,
-                                                  depth_sample, depth_min, depth_max, iteration, eval_grid, weight,
-                                                  view_weights)
+                                                  depth_sample, iteration, eval_grid, weight, view_weights)
             depth_sample = depth_sample.unsqueeze(1)
             depth_samples.append(depth_sample)
 
@@ -430,9 +425,7 @@ class PatchMatch(nn.Module):
             if self.propagate_neighbors > 0:
                 # last iteration on stage 1 does not have propagation (photometric consistency filtering)
                 if not (self.stage == 1 and iteration == self.patchmatch_iteration):
-                    depth_sample = self.propagation(batch, height, width, depth_sample, propa_grid, depth_min,
-                                                    depth_max,
-                                                    self.patchmatch_interval_scale)
+                    depth_sample = self.propagation(batch, height, width, depth_sample, propa_grid)
             # weights for adaptive spatial cost aggregation in adaptive evaluation
             weight = depth_weight(depth_sample.detach(), depth_min, depth_max, eval_grid.detach(),
                                   self.patchmatch_interval_scale,
@@ -441,9 +434,8 @@ class PatchMatch(nn.Module):
             weight = weight / torch.sum(weight, dim=2).unsqueeze(2)
 
             # evaluation, outputs regressed depth map
-            depth_sample, score = self.evaluation(ref_feature, src_features,
-                                                  ref_proj, src_projs, depth_sample, depth_min, depth_max, iteration,
-                                                  eval_grid, weight, view_weights)
+            depth_sample, score = self.evaluation(ref_feature, src_features, ref_proj, src_projs,
+                                                  depth_sample, iteration, eval_grid, weight, view_weights)
 
             depth_sample = depth_sample.unsqueeze(1)
             depth_samples.append(depth_sample)

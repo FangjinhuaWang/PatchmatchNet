@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import time
+import cv2
 
 import torch.backends.cudnn as cudnn
 import torch.nn.parallel
@@ -9,7 +10,7 @@ from PIL import Image
 from plyfile import PlyData, PlyElement
 from torch.utils.data import DataLoader
 
-from datasets import find_dataset_def
+from datasets.custom import MVSDataset
 from datasets.data_io import read_image, save_image
 from models.net import *
 from utils import *
@@ -17,19 +18,15 @@ from utils import *
 cudnn.benchmark = True
 
 parser = argparse.ArgumentParser(description='Predict depth, filter, and fuse')
-parser.add_argument('--model', default='PatchmatchNet', help='select model')
 
-parser.add_argument('--dataset', default='eth3d', help='select dataset')
 parser.add_argument('--test_path', help='testing data path')
-parser.add_argument('--testlist', help='testing scan list')
-parser.add_argument('--split', default='test', help='select data')
-
-parser.add_argument('--batch_size', type=int, default=1, help='testing batch size')
-parser.add_argument('--n_views', type=int, default=5, help='num of view')
-parser.add_argument('--image_dims', nargs=2, type=int, default=[640, 480], help='image size')
-
 parser.add_argument('--checkpoint_path', default=None, help='load a specific checkpoint')
 parser.add_argument('--out_dir', default='./outputs', help='output dir')
+
+parser.add_argument('--batch_size', type=int, default=1, help='testing batch size')
+parser.add_argument('--num_views', type=int, default=21, help='num of view')
+parser.add_argument('--image_dims', nargs=2, type=int, default=[640, 480], help='image size')
+
 parser.add_argument('--display', action='store_true', help='display depth images and masks')
 
 parser.add_argument('--patch_match_iteration', nargs='+', type=int, default=[1, 2, 2],
@@ -49,7 +46,7 @@ parser.add_argument('--geom_pixel_threshold', type=float, default=1,
                     help='pixel threshold for geometric consistency filtering')
 parser.add_argument('--geom_depth_threshold', type=float, default=0.01,
                     help='depth threshold for geometric consistency filtering')
-parser.add_argument('--photo_threshold', type=float, default=0.8,
+parser.add_argument('--photo_threshold', type=float, default=0.5,
                     help='threshold for photometric consistency filtering')
 parser.add_argument('--geom_threshold', type=int, default=3, help='threshold for photometric consistency filtering')
 parser.add_argument('--file_format', default='bin', help='File format for depth maps; supports pfm and bin')
@@ -116,12 +113,9 @@ def read_pair_file(filename):
 
 # run MVS model to save depth maps
 def save_depth():
-    # dataset, dataloader
-    mvs_dataset = find_dataset_def(args.dataset)
-    test_dataset = mvs_dataset(args.test_path, args.n_views, args.image_dims)
-    test_img_loader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
+    dataset = MVSDataset(args.test_path, args.num_views, args.image_dims)
+    image_loader = DataLoader(dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 
-    # model
     model = PatchmatchNet(patchmatch_interval_scale=args.patch_match_interval_scale,
                           propagation_range=args.patch_match_range, patchmatch_iteration=args.patch_match_iteration,
                           patchmatch_num_sample=args.patch_match_num_sample,
@@ -138,7 +132,7 @@ def save_depth():
     # cn.save(args.checkpoint_path + '.jit')
 
     with torch.no_grad():
-        for batch_idx, sample in enumerate(test_img_loader):
+        for batch_idx, sample in enumerate(image_loader):
             start_time = time.time()
             sample_cuda = to_cuda(sample)
             outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_min"],
@@ -146,7 +140,7 @@ def save_depth():
 
             outputs = tensor2numpy(outputs)
             del sample_cuda
-            print('Iter {}/{}, time = {:.3f}'.format(batch_idx, len(test_img_loader), time.time() - start_time))
+            print('Iter {}/{}, time = {:.3f}'.format(batch_idx, len(image_loader), time.time() - start_time))
             filenames = sample["filename"]
 
             # save depth maps and confidence maps
@@ -302,7 +296,6 @@ def filter_depth(scan_folder, out_folder, ply_filename, geom_pixel_threshold, ge
                                                                                                         final_mask.mean()))
 
         if args.display:
-            import cv2
             cv2.imshow('ref_img', ref_img[:, :, ::-1])
             cv2.imshow('ref_depth', ref_depth_est)
             cv2.imshow('ref_depth * photo_mask', ref_depth_est * photo_mask.astype(np.float32))
@@ -348,5 +341,5 @@ if __name__ == '__main__':
     geo_mask_threshold = args.geo_thres
 
     # step2. filter saved depth maps and reconstruct point cloud
-    filter_depth(args.test_path, args.out_dir, os.path.join(args.out_dir, 'custom.ply'),
-                 args.geo_pixel_thres, args.geo_depth_thres, args.photo_thres, geo_mask_threshold)
+    # filter_depth(args.test_path, args.out_dir, os.path.join(args.out_dir, 'custom.ply'),
+    #              args.geo_pixel_thres, args.geo_depth_thres, args.photo_thres, geo_mask_threshold)

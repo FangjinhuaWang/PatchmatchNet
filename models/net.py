@@ -170,8 +170,6 @@ class PatchmatchNet(nn.Module):
                                                                               src_features_l,
                                                                               ref_proj, src_projs,
                                                                               depth_min, depth_max, depth=depth,
-                                                                              img=getattr(self,
-                                                                                          f'imgs_{stage}_ref'),
                                                                               view_weights=view_weights)
 
             del src_features_l, ref_proj, src_projs, projs_l

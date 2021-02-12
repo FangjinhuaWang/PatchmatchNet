@@ -22,6 +22,23 @@ def read_cam_file(filename):
     return intrinsics, extrinsics, depth_min, depth_max
 
 
+def read_image(filename, h, w):
+    img = Image.open(filename)
+
+    # scale 0~255 to 0~1
+    np_img = np.array(img, dtype=np.float32) / 255.
+    original_h, original_w, _ = np_img.shape
+    np_img = cv2.resize(np_img, (w, h), interpolation=cv2.INTER_LINEAR)
+
+    np_img_ms = {
+        "stage_3": cv2.resize(np_img, (w // 8, h // 8), interpolation=cv2.INTER_LINEAR),
+        "stage_2": cv2.resize(np_img, (w // 4, h // 4), interpolation=cv2.INTER_LINEAR),
+        "stage_1": cv2.resize(np_img, (w // 2, h // 2), interpolation=cv2.INTER_LINEAR),
+        "stage_0": np_img
+    }
+    return np_img_ms, original_h, original_w
+
+
 class MVSDataset(Dataset):
     def __init__(self, data_path, num_views=10, img_dims=(736, 416)):
 
@@ -42,22 +59,6 @@ class MVSDataset(Dataset):
                 src_views = [int(x) for x in f.readline().rstrip().split()[1::2]]
                 if len(src_views) != 0:
                     self.metas += [(ref_view, src_views)]
-
-    def read_img(self, filename, h, w):
-        img = Image.open(filename)
-
-        # scale 0~255 to 0~1
-        np_img = np.array(img, dtype=np.float32) / 255.
-        original_h, original_w, _ = np_img.shape
-        np_img = cv2.resize(np_img, self.img_dims, interpolation=cv2.INTER_LINEAR)
-
-        np_img_ms = {
-            "stage_3": cv2.resize(np_img, (w // 8, h // 8), interpolation=cv2.INTER_LINEAR),
-            "stage_2": cv2.resize(np_img, (w // 4, h // 4), interpolation=cv2.INTER_LINEAR),
-            "stage_1": cv2.resize(np_img, (w // 2, h // 2), interpolation=cv2.INTER_LINEAR),
-            "stage_0": np_img
-        }
-        return np_img_ms, original_h, original_w
 
     def __len__(self):
         return len(self.metas)
@@ -86,7 +87,7 @@ class MVSDataset(Dataset):
             img_filename = os.path.join(self.data_path, f'images/{vid:08d}.jpg')
             proj_mat_filename = os.path.join(self.data_path, f'cams/{vid:08d}_cam.txt')
 
-            imgs, original_h, original_w = self.read_img(img_filename, self.img_dims[1], self.img_dims[0])
+            imgs, original_h, original_w = read_image(img_filename, self.img_dims[1], self.img_dims[0])
             imgs_0.append(imgs['stage_0'])
             imgs_1.append(imgs['stage_1'])
             imgs_2.append(imgs['stage_2'])
