@@ -22,7 +22,7 @@ from PIL import Image
 cudnn.benchmark = True
 
 parser = argparse.ArgumentParser(description='Predict depth, filter, and fuse')
-parser.add_argument('--model', default='PatchmatchNet', help='select model')
+parser.add_argument('--model', default='PatchMatchNet', help='select model')
 
 parser.add_argument('--dataset', default='dtu_yao_eval', help='select dataset')
 parser.add_argument('--testpath', help='testing data path')
@@ -113,10 +113,10 @@ def save_depth():
     TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 
     # model
-    model = PatchmatchNet(patchmatch_interval_scale=args.patchmatch_interval_scale,
-                propagation_range = args.patchmatch_range, patchmatch_iteration=args.patchmatch_iteration, 
-                patchmatch_num_sample = args.patchmatch_num_sample, 
-                propagate_neighbors=args.propagate_neighbors, evaluate_neighbors=args.evaluate_neighbors)
+    model = PatchMatchNet(patch_match_interval_scale=args.patchmatch_interval_scale,
+                          propagation_range = args.patchmatch_range, patch_match_iteration=args.patchmatch_iteration,
+                          patch_match_num_sample= args.patchmatch_num_sample,
+                          propagate_neighbors=args.propagate_neighbors, evaluate_neighbors=args.evaluate_neighbors)
     model = nn.DataParallel(model)
     model.cuda()
 

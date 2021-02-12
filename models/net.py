@@ -88,15 +88,15 @@ class Refinement(nn.Module):
         return depth
 
 
-class PatchmatchNet(nn.Module):
-    def __init__(self, patchmatch_interval_scale=[0.005, 0.0125, 0.025], propagation_range=[6, 4, 2],
-                 patchmatch_iteration=[1, 2, 2], patchmatch_num_sample=[8, 8, 16], propagate_neighbors=[0, 8, 16],
+class PatchMatchNet(nn.Module):
+    def __init__(self, patch_match_interval_scale=[0.005, 0.0125, 0.025], propagation_range=[6, 4, 2],
+                 patch_match_iteration=[1, 2, 2], patch_match_num_sample=[8, 8, 16], propagate_neighbors=[0, 8, 16],
                  evaluate_neighbors=[9, 9, 9]):
-        super(PatchmatchNet, self).__init__()
+        super(PatchMatchNet, self).__init__()
 
         self.stages = 4
         self.feature = FeatureNet()
-        self.patchmatch_num_sample = patchmatch_num_sample
+        self.patch_match_num_sample = patch_match_num_sample
 
         num_features = [8, 16, 32, 64]
 
@@ -108,32 +108,23 @@ class PatchmatchNet(nn.Module):
         for stage in range(self.stages - 1):
 
             if stage == 2:
-                patchmatch = PatchMatch(True, propagation_range[stage], patchmatch_iteration[stage],
-                                        patchmatch_num_sample[stage], patchmatch_interval_scale[stage],
-                                        num_features[stage + 1], self.G[stage], self.propagate_neighbors[stage],
-                                        stage + 1, evaluate_neighbors[stage])
+                patch_match = PatchMatch(True, propagation_range[stage], patch_match_iteration[stage],
+                                         patch_match_num_sample[stage], patch_match_interval_scale[stage],
+                                         num_features[stage + 1], self.G[stage], self.propagate_neighbors[stage],
+                                         stage + 1, evaluate_neighbors[stage])
             else:
-                patchmatch = PatchMatch(False, propagation_range[stage], patchmatch_iteration[stage],
-                                        patchmatch_num_sample[stage], patchmatch_interval_scale[stage],
-                                        num_features[stage + 1], self.G[stage], self.propagate_neighbors[stage],
-                                        stage + 1, evaluate_neighbors[stage])
-            setattr(self, f'patchmatch_{stage + 1}', patchmatch)
+                patch_match = PatchMatch(False, propagation_range[stage], patch_match_iteration[stage],
+                                         patch_match_num_sample[stage], patch_match_interval_scale[stage],
+                                         num_features[stage + 1], self.G[stage], self.propagate_neighbors[stage],
+                                         stage + 1, evaluate_neighbors[stage])
+            setattr(self, f'patchmatch_{stage + 1}', patch_match)
 
         self.upsample_net = Refinement()
 
-    def forward(self, imgs, proj_matrices, depth_min, depth_max):
+    def forward(self, images, proj_matrices, depth_min, depth_max):
 
-        imgs_0 = torch.unbind(imgs['stage_0'], 1)
-        imgs_1 = torch.unbind(imgs['stage_1'], 1)
-        imgs_2 = torch.unbind(imgs['stage_2'], 1)
-        imgs_3 = torch.unbind(imgs['stage_3'], 1)
-        del imgs
-
-        self.imgs_0_ref = imgs_0[0]
-        self.imgs_1_ref = imgs_1[0]
-        self.imgs_2_ref = imgs_2[0]
-        self.imgs_3_ref = imgs_3[0]
-        del imgs_1, imgs_2, imgs_3
+        images_0 = torch.unbind(images['stage_0'], 1)
+        images_0_ref = images_0[0]
 
         self.proj_matrices_0 = torch.unbind(proj_matrices['stage_0'].float(), 1)
         self.proj_matrices_1 = torch.unbind(proj_matrices['stage_1'].float(), 1)
@@ -141,24 +132,24 @@ class PatchmatchNet(nn.Module):
         self.proj_matrices_3 = torch.unbind(proj_matrices['stage_3'].float(), 1)
         del proj_matrices
 
-        assert len(imgs_0) == len(self.proj_matrices_0), "Different number of images and projection matrices"
+        assert len(images_0) == len(self.proj_matrices_0), "Different number of images and projection matrices"
 
         # step 1. Multi-scale feature extraction
         features = []
-        for img in imgs_0:
+        for img in images_0:
             output_feature = self.feature(img)
             features.append(output_feature)
-        del imgs_0
+        del images_0
         ref_feature, src_features = features[0], features[1:]
 
         depth_min = depth_min.float()
         depth_max = depth_max.float()
 
-        # step 2. Learning-based patchmatch
+        # step 2. Learning-based patch-match
         depth = None
         score = None
         view_weights = None
-        depth_patchmatch = {}
+        depth_patch_match = {}
         refined_depth = {}
 
         for stage in reversed(range(1, self.stages)):
@@ -174,7 +165,7 @@ class PatchmatchNet(nn.Module):
 
             del src_features_l, ref_proj, src_projs, projs_l
 
-            depth_patchmatch[f'stage_{stage}'] = depth
+            depth_patch_match[f'stage_{stage}'] = depth
 
             depth = depth[-1].detach()
             if stage > 1:
@@ -185,18 +176,18 @@ class PatchmatchNet(nn.Module):
                                                  scale_factor=2, mode='nearest')
 
         # step 3. Refinement  
-        depth = self.upsample_net(self.imgs_0_ref, depth, depth_min, depth_max)
+        depth = self.upsample_net(images_0_ref, depth, depth_min, depth_max)
         refined_depth['stage_0'] = depth
 
         del depth, ref_feature, src_features
 
         if self.training:
             return {"refined_depth": refined_depth,
-                    "depth_patchmatch": depth_patchmatch,
+                    "depth_patch_match": depth_patch_match,
                     }
 
         else:
-            num_depth = self.patchmatch_num_sample[0]
+            num_depth = self.patch_match_num_sample[0]
             score_sum4 = 4 * nnfun.avg_pool3d(nnfun.pad(score.unsqueeze(1), pad=(0, 0, 0, 0, 1, 2)), (4, 1, 1),
                                               stride=1,
                                               padding=0).squeeze(1)
@@ -210,12 +201,12 @@ class PatchmatchNet(nn.Module):
             photometric_confidence = photometric_confidence.squeeze(1)
 
             return {"refined_depth": refined_depth,
-                    "depth_patchmatch": depth_patchmatch,
+                    "depth_patch_match": depth_patch_match,
                     "photometric_confidence": photometric_confidence,
                     }
 
 
-def patchmatchnet_loss(depth_patchmatch, refined_depth, depth_gt, mask):
+def patch_match_net_loss(depth_patch_match, refined_depth, depth_gt, mask):
     stage = 4
     loss = 0
     for stage in range(1, stage):
@@ -223,9 +214,9 @@ def patchmatchnet_loss(depth_patchmatch, refined_depth, depth_gt, mask):
         mask_l = mask[f'stage_{stage}'] > 0.5
         depth2 = depth_gt_l[mask_l]
 
-        depth_patchmatch_l = depth_patchmatch[f'stage_{stage}']
-        for i in range(len(depth_patchmatch_l)):
-            depth1 = depth_patchmatch_l[i][mask_l]
+        depth_patch_match_l = depth_patch_match[f'stage_{stage}']
+        for i in range(len(depth_patch_match_l)):
+            depth1 = depth_patch_match_l[i][mask_l]
             loss = loss + nnfun.smooth_l1_loss(depth1, depth2, reduction='mean')
 
     stage = 0

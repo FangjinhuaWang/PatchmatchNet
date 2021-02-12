@@ -278,7 +278,7 @@ def rotmat2qvec(rot):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Convert colmap results into input for PatchmatchNet')
+    parser = argparse.ArgumentParser(description='Convert colmap results into input for PatchMatchNet')
 
     parser.add_argument('--input_folder', type=str, help='Project dir.')
     parser.add_argument('--output_folder', type=str, default="", help='Project dir.')

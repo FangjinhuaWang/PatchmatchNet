@@ -17,9 +17,9 @@ from utils import *
 
 cudnn.benchmark = True
 
-parser = argparse.ArgumentParser(description='PatchmatchNet for high-resolution multi-view stereo')
+parser = argparse.ArgumentParser(description='PatchMatchNet for high-resolution multi-view stereo')
 parser.add_argument('--mode', default='train', help='train or val', choices=['train', 'val'])
-parser.add_argument('--model', default='PatchmatchNet', help='select model')
+parser.add_argument('--model', default='PatchMatchNet', help='select model')
 
 parser.add_argument('--dataset', default='dtu_yao', help='select dataset')
 parser.add_argument('--trainpath', help='train datapath')
@@ -91,14 +91,14 @@ TrainImgLoader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_wo
 TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 
 # model, optimizer
-model = PatchmatchNet(patchmatch_interval_scale=args.patchmatch_interval_scale,
-                propagation_range = args.patchmatch_range, patchmatch_iteration=args.patchmatch_iteration, 
-                patchmatch_num_sample = args.patchmatch_num_sample, 
-                propagate_neighbors=args.propagate_neighbors, evaluate_neighbors=args.evaluate_neighbors)
+model = PatchMatchNet(patch_match_interval_scale=args.patchmatch_interval_scale,
+                      propagation_range = args.patchmatch_range, patch_match_iteration=args.patchmatch_iteration,
+                      patch_match_num_sample= args.patchmatch_num_sample,
+                      propagate_neighbors=args.propagate_neighbors, evaluate_neighbors=args.evaluate_neighbors)
 if args.mode in ["train", "val"]:
     model = nn.DataParallel(model)
 model.cuda()
-model_loss = patchmatchnet_loss
+model_loss = patch_match_net_loss
 optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=args.wd)
 
 

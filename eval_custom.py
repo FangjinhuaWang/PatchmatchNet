@@ -116,9 +116,9 @@ def save_depth():
     dataset = MVSDataset(args.test_path, args.num_views, args.image_dims)
     image_loader = DataLoader(dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 
-    model = PatchmatchNet(patchmatch_interval_scale=args.patch_match_interval_scale,
-                          propagation_range=args.patch_match_range, patchmatch_iteration=args.patch_match_iteration,
-                          patchmatch_num_sample=args.patch_match_num_sample,
+    model = PatchMatchNet(patch_match_interval_scale=args.patch_match_interval_scale,
+                          propagation_range=args.patch_match_range, patch_match_iteration=args.patch_match_iteration,
+                          patch_match_num_sample=args.patch_match_num_sample,
                           propagate_neighbors=args.propagate_neighbors, evaluate_neighbors=args.evaluate_neighbors)
     model = nn.DataParallel(model)
     model.cuda()
@@ -342,4 +342,4 @@ if __name__ == '__main__':
 
     # step2. filter saved depth maps and reconstruct point cloud
     # filter_depth(args.test_path, args.out_dir, os.path.join(args.out_dir, 'custom.ply'),
-    #              args.geo_pixel_thres, args.geo_depth_thres, args.photo_thres, geo_mask_threshold)
+    #              args.geom_pixel_threshold, args.geom_depth_threshold, args.photo_threshold, geo_mask_threshold)
