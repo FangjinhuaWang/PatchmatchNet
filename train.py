@@ -1,22 +1,19 @@
 import argparse
+import datetime
 import os
-import torch
+import sys
+import time
+
+import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.nn.parallel
-import torch.backends.cudnn as cudnn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torch.autograd import Variable
-import torch.nn.functional as F
-import numpy as np
-import time
 from torch.utils.tensorboard import SummaryWriter
+
 from datasets import find_dataset_def
 from models import *
 from utils import *
-import gc
-import sys
-import datetime
 
 cudnn.benchmark = True
 
@@ -204,7 +201,7 @@ def train_sample(sample, detailed_summary=False):
     model.train()
     optimizer.zero_grad()
     
-    sample_cuda = tocuda(sample)
+    sample_cuda = to_cuda(sample)
     depth_gt = sample_cuda["depth"] 
     mask = sample_cuda["mask"]      
     
@@ -233,29 +230,29 @@ def train_sample(sample, detailed_summary=False):
         image_outputs["errormap_patchmatch_stage_2"] = (depth_patchmatch['stage_2'][-1] - depth_gt['stage_2']).abs() * mask['stage_2']
         image_outputs["errormap_patchmatch_stage_3"] = (depth_patchmatch['stage_3'][-1] - depth_gt['stage_3']).abs() * mask['stage_3']
 
-    scalar_outputs["abs_depth_error_refined_stage_0"] = AbsDepthError_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5)
-    scalar_outputs["abs_depth_error_patchmatch_stage_3"] = AbsDepthError_metrics(depth_patchmatch['stage_3'][-1], 
-                                                        depth_gt['stage_3'], mask['stage_3'] > 0.5)
-    scalar_outputs["abs_depth_error_patchmatch_stage_2"] = AbsDepthError_metrics(depth_patchmatch['stage_2'][-1], 
-                                                        depth_gt['stage_2'], mask['stage_2'] > 0.5)
-    scalar_outputs["abs_depth_error_patchmatch_stage_1"] = AbsDepthError_metrics(depth_patchmatch['stage_1'][-1], 
-                                                        depth_gt['stage_1'], mask['stage_1'] > 0.5)
+    scalar_outputs["abs_depth_error_refined_stage_0"] = abs_depth_error_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5)
+    scalar_outputs["abs_depth_error_patchmatch_stage_3"] = abs_depth_error_metrics(depth_patchmatch['stage_3'][-1],
+                                                                                   depth_gt['stage_3'], mask['stage_3'] > 0.5)
+    scalar_outputs["abs_depth_error_patchmatch_stage_2"] = abs_depth_error_metrics(depth_patchmatch['stage_2'][-1],
+                                                                                   depth_gt['stage_2'], mask['stage_2'] > 0.5)
+    scalar_outputs["abs_depth_error_patchmatch_stage_1"] = abs_depth_error_metrics(depth_patchmatch['stage_1'][-1],
+                                                                                   depth_gt['stage_1'], mask['stage_1'] > 0.5)
     # threshold = 1mm
-    scalar_outputs["thres1mm_error"] = Thres_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 1)
+    scalar_outputs["thres1mm_error"] = threshold_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 1)
     # threshold = 2mm
-    scalar_outputs["thres2mm_error"] = Thres_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 2)
+    scalar_outputs["thres2mm_error"] = threshold_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 2)
     # threshold = 4mm
-    scalar_outputs["thres4mm_error"] = Thres_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 4)
+    scalar_outputs["thres4mm_error"] = threshold_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 4)
     # threshold = 8mm
-    scalar_outputs["thres8mm_error"] = Thres_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 8)
+    scalar_outputs["thres8mm_error"] = threshold_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 8)
     
     return tensor2float(loss), tensor2float(scalar_outputs), image_outputs
 
 
-@make_nograd_func
+@make_no_grad_func
 def test_sample(sample, detailed_summary=True):
     model.eval()
-    sample_cuda = tocuda(sample)
+    sample_cuda = to_cuda(sample)
     depth_gt = sample_cuda["depth"]
     mask = sample_cuda["mask"]
     
@@ -280,21 +277,21 @@ def test_sample(sample, detailed_summary=True):
         image_outputs["errormap_patchmatch_stage_2"] = (depth_patchmatch['stage_2'][-1] - depth_gt['stage_2']).abs() * mask['stage_2']
         image_outputs["errormap_patchmatch_stage_3"] = (depth_patchmatch['stage_3'][-1] - depth_gt['stage_3']).abs() * mask['stage_3']
 
-    scalar_outputs["abs_depth_error_refined_stage_0"] = AbsDepthError_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5)
-    scalar_outputs["abs_depth_error_patchmatch_stage_3"] = AbsDepthError_metrics(depth_patchmatch['stage_3'][-1], 
-                                                        depth_gt['stage_3'], mask['stage_3'] > 0.5)
-    scalar_outputs["abs_depth_error_patchmatch_stage_2"] = AbsDepthError_metrics(depth_patchmatch['stage_2'][-1], 
-                                                        depth_gt['stage_2'], mask['stage_2'] > 0.5)
-    scalar_outputs["abs_depth_error_patchmatch_stage_1"] = AbsDepthError_metrics(depth_patchmatch['stage_1'][-1], 
-                                                        depth_gt['stage_1'], mask['stage_1'] > 0.5)
+    scalar_outputs["abs_depth_error_refined_stage_0"] = abs_depth_error_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5)
+    scalar_outputs["abs_depth_error_patchmatch_stage_3"] = abs_depth_error_metrics(depth_patchmatch['stage_3'][-1],
+                                                                                   depth_gt['stage_3'], mask['stage_3'] > 0.5)
+    scalar_outputs["abs_depth_error_patchmatch_stage_2"] = abs_depth_error_metrics(depth_patchmatch['stage_2'][-1],
+                                                                                   depth_gt['stage_2'], mask['stage_2'] > 0.5)
+    scalar_outputs["abs_depth_error_patchmatch_stage_1"] = abs_depth_error_metrics(depth_patchmatch['stage_1'][-1],
+                                                                                   depth_gt['stage_1'], mask['stage_1'] > 0.5)
     # threshold = 1mm
-    scalar_outputs["thres1mm_error"] = Thres_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 1)
+    scalar_outputs["thres1mm_error"] = threshold_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 1)
     # threshold = 2mm
-    scalar_outputs["thres2mm_error"] = Thres_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 2)
+    scalar_outputs["thres2mm_error"] = threshold_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 2)
     # threshold = 4mm
-    scalar_outputs["thres4mm_error"] = Thres_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 4)
+    scalar_outputs["thres4mm_error"] = threshold_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 4)
     # threshold = 8mm
-    scalar_outputs["thres8mm_error"] = Thres_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 8)
+    scalar_outputs["thres8mm_error"] = threshold_metrics(depth_est['stage_0'], depth_gt['stage_0'], mask['stage_0'] > 0.5, 8)
     
     return tensor2float(loss), tensor2float(scalar_outputs), image_outputs
 

@@ -6,7 +6,7 @@ import os
 # from https://github.com/intel-isl/Open3D/blob/master/examples/Python/Advanced/load_save_viewpoint.py
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument('--logdir', type=str, required=True,
+    parser.add_argument('--log_dir', type=str, required=True,
                         help='the scan to visualize')
     parser.add_argument('--scan', type=str, required=True,
                         help='the scan to visualize')
@@ -19,9 +19,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     if args.dataset == 'dtu':
-        path =  os.path.join(args.logdir, 'patchmatchnet{:0>3}_l3.ply'.format(args.scan))
+        path = os.path.join(args.log_dir, 'patch_match_net_{:0>3}_l3.ply'.format(args.scan))
     else:
-        path =  os.path.join(args.logdir, args.scan+'.ply')
+        path = os.path.join(args.log_dir, args.scan+'.ply')
     pcd = o3d.io.read_point_cloud(path)
     print(f'{args.scan} contains {len(pcd.points)/1e6:.2f} M points')
     vis = o3d.visualization.Visualizer()
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     ctr = vis.get_view_control()
     opt = vis.get_render_option()
     opt.point_size = 1.0
-    opt.background_color = np.array([1,1, 1.0])
+    opt.background_color = np.array([1, 1, 1.0])
     vis.add_geometry(pcd)
     
     if args.use_viewpoint:

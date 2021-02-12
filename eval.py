@@ -129,7 +129,7 @@ def save_depth():
     with torch.no_grad():
         for batch_idx, sample in enumerate(TestImgLoader):
             start_time = time.time()
-            sample_cuda = tocuda(sample)
+            sample_cuda = to_cuda(sample)
             outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], 
                             sample_cuda["depth_min"], sample_cuda["depth_max"])
             

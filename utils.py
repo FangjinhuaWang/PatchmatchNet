@@ -1,7 +1,6 @@
 import numpy as np
-import torchvision.utils as vutils
 import torch
-import torch.nn.functional as F
+import torchvision.utils as vutils
 
 
 # print arguments
@@ -12,8 +11,8 @@ def print_args(args):
     print("########################################################################")
 
 
-# torch.no_grad warpper for functions
-def make_nograd_func(func):
+# torch.no_grad wrapper for functions
+def make_no_grad_func(func):
     def wrapper(*f_args, **f_kwargs):
         with torch.no_grad():
             ret = func(*f_args, **f_kwargs)
@@ -24,47 +23,47 @@ def make_nograd_func(func):
 
 # convert a function into recursive style to handle nested dict/list/tuple variables
 def make_recursive_func(func):
-    def wrapper(vars):
-        if isinstance(vars, list):
-            return [wrapper(x) for x in vars]
-        elif isinstance(vars, tuple):
-            return tuple([wrapper(x) for x in vars])
-        elif isinstance(vars, dict):
-            return {k: wrapper(v) for k, v in vars.items()}
+    def wrapper(args):
+        if isinstance(args, list):
+            return [wrapper(x) for x in args]
+        elif isinstance(args, tuple):
+            return tuple([wrapper(x) for x in args])
+        elif isinstance(args, dict):
+            return {k: wrapper(v) for k, v in args.items()}
         else:
-            return func(vars)
+            return func(args)
 
     return wrapper
 
 
 @make_recursive_func
-def tensor2float(vars):
-    if isinstance(vars, float):
-        return vars
-    elif isinstance(vars, torch.Tensor):
-        return vars.data.item()
+def tensor2float(args):
+    if isinstance(args, float):
+        return args
+    elif isinstance(args, torch.Tensor):
+        return args.data.item()
     else:
-        raise NotImplementedError("invalid input type {} for tensor2float".format(type(vars)))
+        raise NotImplementedError("invalid input type {} for tensor2float".format(type(args)))
 
 
 @make_recursive_func
-def tensor2numpy(vars):
-    if isinstance(vars, np.ndarray):
-        return vars
-    elif isinstance(vars, torch.Tensor):
-        return vars.detach().cpu().numpy().copy()
+def tensor2numpy(args):
+    if isinstance(args, np.ndarray):
+        return args
+    elif isinstance(args, torch.Tensor):
+        return args.detach().cpu().numpy().copy()
     else:
-        raise NotImplementedError("invalid input type {} for tensor2numpy".format(type(vars)))
+        raise NotImplementedError("invalid input type {} for tensor2numpy".format(type(args)))
 
 
 @make_recursive_func
-def tocuda(vars):
-    if isinstance(vars, torch.Tensor):
-        return vars.cuda()
-    elif isinstance(vars, str):
-        return vars
+def to_cuda(args):
+    if isinstance(args, torch.Tensor):
+        return args.cuda()
+    elif isinstance(args, str):
+        return args
     else:
-        raise NotImplementedError("invalid input type {} for tocuda".format(type(vars)))
+        raise NotImplementedError("invalid input type {} for to_cuda".format(type(args)))
 
 
 def save_scalars(logger, mode, scalar_dict, global_step):
@@ -82,9 +81,9 @@ def save_scalars(logger, mode, scalar_dict, global_step):
 def save_images(logger, mode, images_dict, global_step):
     images_dict = tensor2numpy(images_dict)
 
-    def preprocess(name, img):
+    def preprocess(img_name, img):
         if not (len(img.shape) == 3 or len(img.shape) == 4):
-            raise NotImplementedError("invalid img shape {}:{} in save_images".format(name, img.shape))
+            raise NotImplementedError("invalid img shape {}:{} in save_images".format(img_name, img.shape))
         if len(img.shape) == 3:
             img = img[:, np.newaxis, :, :]
         img = torch.from_numpy(img[:1])
@@ -136,20 +135,20 @@ def compute_metrics_for_each_image(metric_func):
     return wrapper
 
 
-@make_nograd_func
+@make_no_grad_func
 @compute_metrics_for_each_image
-def Thres_metrics(depth_est, depth_gt, mask, thres):
-    # if thres is int or float, then True
-    assert isinstance(thres, (int, float))
+def threshold_metrics(depth_est, depth_gt, mask, threshold):
+    # if threshold is int or float, then True
+    assert isinstance(threshold, (int, float))
     depth_est, depth_gt = depth_est[mask], depth_gt[mask]
     errors = torch.abs(depth_est - depth_gt)
-    err_mask = errors > thres
+    err_mask = errors > threshold
     return torch.mean(err_mask.float())
 
 
 # NOTE: please do not use this to build up training loss
-@make_nograd_func
+@make_no_grad_func
 @compute_metrics_for_each_image
-def AbsDepthError_metrics(depth_est, depth_gt, mask):
+def abs_depth_error_metrics(depth_est, depth_gt, mask):
     depth_est, depth_gt = depth_est[mask], depth_gt[mask]
     return torch.mean((depth_est - depth_gt).abs())
