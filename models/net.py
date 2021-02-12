@@ -89,9 +89,8 @@ class Refinement(nn.Module):
 
 
 class PatchMatchNet(nn.Module):
-    def __init__(self, patch_match_interval_scale=[0.005, 0.0125, 0.025], propagation_range=[6, 4, 2],
-                 patch_match_iteration=[1, 2, 2], patch_match_num_sample=[8, 8, 16], propagate_neighbors=[0, 8, 16],
-                 evaluate_neighbors=[9, 9, 9]):
+    def __init__(self, patch_match_interval_scale, propagation_range, patch_match_iteration, patch_match_num_sample,
+                 propagate_neighbors, evaluate_neighbors):
         super(PatchMatchNet, self).__init__()
 
         self.stages = 4
