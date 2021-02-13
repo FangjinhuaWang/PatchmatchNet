@@ -146,7 +146,8 @@ def train():
                 save_scalars(logger, 'train', scalar_outputs, global_step)
             if do_summary_image:
                 save_images(logger, 'train', image_outputs, global_step)
-            del scalar_outputs, image_outputs
+            del scalar_outputs
+            del image_outputs
             print(
                 'Epoch {}/{}, Iter {}/{}, train loss = {:.3f}, time = {:.3f}'.format(epoch_idx, args.epochs, batch_idx,
                                                                                      len(TrainImgLoader), loss,
@@ -174,7 +175,8 @@ def train():
             if do_summary_image:
                 save_images(logger, 'test', image_outputs, global_step)
             avg_test_scalars.update(scalar_outputs)
-            del scalar_outputs, image_outputs
+            del scalar_outputs
+            del image_outputs
             print('Epoch {}/{}, Iter {}/{}, test loss = {:.3f}, time = {:3f}'.format(epoch_idx, args.epochs, batch_idx,
                                                                                      len(TestImgLoader), loss,
                                                                                      time.time() - start_time))
@@ -189,7 +191,8 @@ def test():
         start_time = time.time()
         loss, scalar_outputs, image_outputs = test_sample(sample, detailed_summary=True)
         avg_test_scalars.update(scalar_outputs)
-        del scalar_outputs, image_outputs
+        del scalar_outputs
+        del image_outputs
         print('Iter {}/{}, test loss = {:.3f}, time = {:3f}'.format(batch_idx, len(TestImgLoader), loss,
                                                                     time.time() - start_time))
         if batch_idx % 100 == 0:

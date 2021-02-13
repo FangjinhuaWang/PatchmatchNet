@@ -6,7 +6,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 
 
-def read_cam_file(filename):
+def read_cam_file(filename: str):
     with open(filename) as f:
         lines = [line.rstrip() for line in f.readlines()]
     # extrinsics: line [1,5), 4x4 matrix
@@ -22,7 +22,7 @@ def read_cam_file(filename):
     return intrinsics, extrinsics, depth_min, depth_max
 
 
-def read_image(filename, h, w):
+def read_image(filename: str, h: int, w: int):
     img = Image.open(filename)
 
     # scale 0~255 to 0~1
@@ -40,7 +40,7 @@ def read_image(filename, h, w):
 
 
 class MVSDataset(Dataset):
-    def __init__(self, data_path, num_views=10, img_dims=(736, 416)):
+    def __init__(self, data_path: str, num_views: int = 10, img_dims=(736, 416)):
 
         self.metas = []
         self.stages = 4

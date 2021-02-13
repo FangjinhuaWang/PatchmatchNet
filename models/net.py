@@ -1,5 +1,5 @@
 from .patchmatch import *
-
+from torch import Tensor
 
 class FeatureNet(nn.Module):
     def __init__(self):
@@ -27,7 +27,7 @@ class FeatureNet(nn.Module):
         self.output2 = nn.Conv2d(64, 32, 1, bias=False)
         self.output3 = nn.Conv2d(64, 16, 1, bias=False)
 
-    def forward(self, x):
+    def forward(self, x: Tensor):
         output_feature = {}
 
         conv1 = self.conv1(self.conv0(x))
@@ -39,7 +39,8 @@ class FeatureNet(nn.Module):
         output_feature['stage_3'] = self.output1(conv10)
 
         intra_feat = nnfun.interpolate(conv10, scale_factor=2, mode="bilinear") + self.inner1(conv7)
-        del conv7, conv10
+        del conv7
+        del conv10
         output_feature['stage_2'] = self.output2(intra_feat)
 
         intra_feat = nnfun.interpolate(intra_feat, scale_factor=2, mode="bilinear") + self.inner2(conv4)
@@ -66,24 +67,23 @@ class Refinement(nn.Module):
         self.conv3 = ConvBnReLU(16, 8)
         self.res = nn.Conv2d(8, 1, 3, padding=1, bias=False)
 
-    def forward(self, img, depth_0, depth_min, depth_max):
-        batch_size = depth_min.size()[0]
+    def forward(self, img: Tensor, depth_0: Tensor, depth_min: float, depth_max: float):
+        batch_size = img.size()[0]
         # pre-scale the depth map into [0,1]
-        depth = (depth_0 - depth_min.view(batch_size, 1, 1, 1)) / (
-                depth_max.view(batch_size, 1, 1, 1) - depth_min.view(batch_size, 1, 1, 1))
+        depth = (depth_0 - depth_min) / (depth_max - depth_min)
 
         conv0 = self.conv0(img)
         deconv = nnfun.relu(self.bn(self.deconv(self.conv2(self.conv1(depth)))), inplace=True)
         cat = torch.cat((deconv, conv0), dim=1)
-        del deconv, conv0
+        del deconv
+        del conv0
         # depth residual
         res = self.res(self.conv3(cat))
         del cat
 
         depth = nnfun.interpolate(depth, scale_factor=2, mode="nearest") + res
         # convert the normalized depth back
-        depth = depth * (depth_max.view(batch_size, 1, 1, 1) - depth_min.view(batch_size, 1, 1, 1)) + depth_min.view(
-            batch_size, 1, 1, 1)
+        depth = depth * (depth_max - depth_min) + depth_min
 
         return depth
 
@@ -120,7 +120,7 @@ class PatchMatchNet(nn.Module):
 
         self.upsample_net = Refinement()
 
-    def forward(self, images, proj_matrices, depth_min, depth_max):
+    def forward(self, images, proj_matrices, depth_min: float, depth_max: float):
 
         images_0 = torch.unbind(images['stage_0'], 1)
         images_0_ref = images_0[0]
@@ -141,13 +141,10 @@ class PatchMatchNet(nn.Module):
         del images_0
         ref_feature, src_features = features[0], features[1:]
 
-        depth_min = depth_min.float()
-        depth_max = depth_max.float()
-
         # step 2. Learning-based patch-match
-        depth = None
-        score = None
-        view_weights = None
+        depth = torch.Tensor()
+        score = torch.Tensor()
+        view_weights = torch.Tensor()
         depth_patch_match = {}
         refined_depth = {}
 
@@ -162,7 +159,10 @@ class PatchMatchNet(nn.Module):
                                                                               depth_min, depth_max, depth=depth,
                                                                               view_weights=view_weights)
 
-            del src_features_l, ref_proj, src_projs, projs_l
+            del src_features_l
+            del ref_proj
+            del src_projs
+            del projs_l
 
             depth_patch_match[f'stage_{stage}'] = depth
 
@@ -178,7 +178,9 @@ class PatchMatchNet(nn.Module):
         depth = self.upsample_net(images_0_ref, depth, depth_min, depth_max)
         refined_depth['stage_0'] = depth
 
-        del depth, ref_feature, src_features
+        del depth
+        del ref_feature
+        del src_features
 
         if self.training:
             return {"refined_depth": refined_depth,
@@ -192,7 +194,7 @@ class PatchMatchNet(nn.Module):
                                               padding=0).squeeze(1)
             # [B, 1, H, W]
             depth_index = depth_regression(score, depth_values=torch.arange(num_depth, device=score.device,
-                                                                            dtype=torch.float)).long()
+                                                                            dtype=torch.float32)).long()
             depth_index = torch.clamp(depth_index, 0, num_depth - 1)
             photometric_confidence = torch.gather(score_sum4, 1, depth_index)
             photometric_confidence = nnfun.interpolate(photometric_confidence,

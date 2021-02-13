@@ -135,9 +135,12 @@ def save_depth():
         for batch_idx, sample in enumerate(image_loader):
             start_time = time.time()
             sample_cuda = to_cuda(sample)
-            outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_min"],
-                            sample_cuda["depth_max"])
-
+            outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_min"].item(),
+                            sample_cuda["depth_max"].item())
+            # tm = torch.jit.trace(model, sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_min"],
+            #                      sample_cuda["depth_max"])
+            # tm.save(os.path.join(args.out_dir, "test-module.pt"))
+            # return
             outputs = tensor2numpy(outputs)
             del sample_cuda
             print('Iter {}/{}, time = {:.3f}'.format(batch_idx, len(image_loader), time.time() - start_time))
@@ -246,7 +249,8 @@ def filter_depth(scan_folder, out_folder, ply_filename, geom_pixel_threshold, ge
         ref_intrinsics[1] *= args.image_dims[1] / original_h
 
         # load the estimated depth of the reference view
-        ref_depth_est = read_image(os.path.join(out_folder, 'depth_est/{:0>8}.{}'.format(ref_view, args.file_format)))[0]
+        ref_depth_est = read_image(os.path.join(out_folder, 'depth_est/{:0>8}.{}'.format(ref_view, args.file_format)))[
+            0]
         ref_depth_est = np.squeeze(ref_depth_est, 2)
         # load the photometric mask of the reference view
         confidence = read_image(os.path.join(out_folder, 'confidence/{:0>8}.{}'.format(ref_view, args.file_format)))[0]
@@ -268,7 +272,8 @@ def filter_depth(scan_folder, out_folder, ply_filename, geom_pixel_threshold, ge
             src_intrinsics[1] *= args.image_dims[1] / original_h
 
             # the estimated depth of the source view
-            src_depth_est = read_image(os.path.join(out_folder, 'depth_est/{:0>8}.{}'.format(src_view, args.file_format)))[0]
+            src_depth_est = \
+            read_image(os.path.join(out_folder, 'depth_est/{:0>8}.{}'.format(src_view, args.file_format)))[0]
 
             geo_mask, depth_reprojected, x2d_src, y2d_src = check_geometric_consistency(ref_depth_est, ref_intrinsics,
                                                                                         ref_extrinsics,
@@ -338,7 +343,7 @@ if __name__ == '__main__':
     # step1. save all the depth maps and the masks in outputs directory
     save_depth()
     # number of source images need to be consistent with in geometric consistency filtering
-    geo_mask_threshold = args.geo_thres
+    # geo_mask_threshold = args.geo_thres
 
     # step2. filter saved depth maps and reconstruct point cloud
     # filter_depth(args.test_path, args.out_dir, os.path.join(args.out_dir, 'custom.ply'),

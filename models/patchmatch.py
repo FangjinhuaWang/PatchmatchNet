@@ -2,70 +2,64 @@ from .module import *
 
 
 class DepthInitialization(nn.Module):
-    def __init__(self, patch_match_num_sample=1):
+    def __init__(self, patch_match_num_sample: int = 1):
         super(DepthInitialization, self).__init__()
         self.patch_match_num_sample = patch_match_num_sample
 
-    def forward(self, random_initialization, min_depth, max_depth, height, width, depth_interval_scale, device,
-                depth=None):
+    def forward(self, batch_size: int, min_depth: float, max_depth: float, height: int,
+                width: int, depth_interval_scale: float, device,
+                depth: Tensor):
 
-        batch_size = min_depth.size()[0]
-        if random_initialization:
+        if is_empty(depth):
             # first iteration of PatchMatch on stage 3, sample in the inverse depth range
             # divide the range into several intervals and sample in each of them
             inverse_min_depth = 1.0 / min_depth
             inverse_max_depth = 1.0 / max_depth
             patch_match_num_sample = 48
             # [B,num_depth,H,W]
-            depth_sample = torch.rand((batch_size, patch_match_num_sample, height, width), device=device) + \
-                           torch.arange(0, patch_match_num_sample, 1, device=device).view(1, patch_match_num_sample, 1, 1)
+            depth_sample = torch.rand((batch_size, patch_match_num_sample, height, width), device=device, dtype=torch.float32) + \
+                           torch.arange(0, patch_match_num_sample, 1, device=device, dtype=torch.float32).view(1, patch_match_num_sample, 1, 1)
 
-            depth_sample = inverse_max_depth.view(batch_size, 1, 1, 1) + depth_sample / patch_match_num_sample * \
-                           (inverse_min_depth.view(batch_size, 1, 1, 1) - inverse_max_depth.view(batch_size, 1, 1, 1))
+            depth_sample = inverse_max_depth + depth_sample / patch_match_num_sample * (inverse_min_depth - inverse_max_depth)
 
             depth_sample = 1.0 / depth_sample
 
             return depth_sample
 
-        else:
+        elif self.patch_match_num_sample == 1:
             # other PatchMatch, local perturbation is performed based on previous result
             # uniform samples in an inverse depth range
-            if self.patch_match_num_sample == 1:
-                return depth.detach()
-            else:
-                inverse_min_depth = 1.0 / min_depth
-                inverse_max_depth = 1.0 / max_depth
+            return depth.detach()
+        else:
+            inverse_min_depth = 1.0 / min_depth
+            inverse_max_depth = 1.0 / max_depth
 
-                depth_sample = torch.arange(-self.patch_match_num_sample // 2, self.patch_match_num_sample // 2, 1,
-                                            device=device).view(1, self.patch_match_num_sample, 1, 1).repeat(batch_size,
-                                                                                                             1, height,
-                                                                                                             width).float()
-                inverse_depth_interval = (inverse_min_depth - inverse_max_depth) * depth_interval_scale
-                inverse_depth_interval = inverse_depth_interval.view(batch_size, 1, 1, 1)
+            depth_sample = torch.arange(-self.patch_match_num_sample // 2, self.patch_match_num_sample // 2, 1,
+                                        device=device, dtype=torch.float32).view(1, self.patch_match_num_sample, 1, 1).repeat(batch_size, 1, height, width)
+            inverse_depth_interval = (inverse_min_depth - inverse_max_depth) * depth_interval_scale
+            depth_sample = 1.0 / depth.detach() + inverse_depth_interval * depth_sample
 
-                depth_sample = 1.0 / depth.detach() + inverse_depth_interval * depth_sample
+            depth_clamped = []
+            del depth
+            for k in range(batch_size):
+                depth_clamped.append(
+                    torch.clamp(depth_sample[k], min=inverse_max_depth, max=inverse_min_depth).unsqueeze(0))
 
-                depth_clamped = []
-                del depth
-                for k in range(batch_size):
-                    depth_clamped.append(
-                        torch.clamp(depth_sample[k], min=inverse_max_depth[k], max=inverse_min_depth[k]).unsqueeze(0))
+            depth_sample = 1.0 / torch.cat(depth_clamped, dim=0)
+            del depth_clamped
 
-                depth_sample = 1.0 / torch.cat(depth_clamped, dim=0)
-                del depth_clamped
-
-                return depth_sample
+            return depth_sample
 
 
 class Propagation(nn.Module):
-    def __init__(self, neighbors=16):
+    def __init__(self, neighbors: int = 16):
         super(Propagation, self).__init__()
         self.neighbors = neighbors
 
-    def forward(self, batch, height, width, depth_sample, grid):
+    def forward(self, batch_size: int, height: int, width: int, depth_sample: Tensor, grid: Tensor):
         # [B,D,H,W]
         num_depth = depth_sample.size()[1]
-        propagate_depth = depth_sample.new_empty(batch, num_depth + self.neighbors, height, width)
+        propagate_depth = depth_sample.new_empty(batch_size, num_depth + self.neighbors, height, width)
         propagate_depth[:, 0:num_depth, :, :] = depth_sample
 
         propagate_depth_sample = nnfun.grid_sample(depth_sample[:, num_depth // 2, :, :].unsqueeze(1),
@@ -73,7 +67,7 @@ class Propagation(nn.Module):
                                                    mode='bilinear',
                                                    padding_mode='border')
         del grid
-        propagate_depth_sample = propagate_depth_sample.view(batch, self.neighbors, height, width)
+        propagate_depth_sample = propagate_depth_sample.view(batch_size, self.neighbors, height, width)
 
         propagate_depth[:, num_depth:, :, :] = propagate_depth_sample
         del propagate_depth_sample
@@ -85,7 +79,7 @@ class Propagation(nn.Module):
 
 
 class Evaluation(nn.Module):
-    def __init__(self, group_size=8, stage=3, evaluate_neighbors=9, iterations=2):
+    def __init__(self, group_size: int = 8, stage: int = 3, evaluate_neighbors: int = 9, iterations: int = 2):
         super(Evaluation, self).__init__()
 
         self.iterations = iterations
@@ -97,8 +91,9 @@ class Evaluation(nn.Module):
 
         self.similarity_net = SimilarityNet(self.group_size, evaluate_neighbors)
 
-    def forward(self, ref_feature, src_features, ref_proj, src_projs, depth_sample, iteration,
-                grid=None, weight=None, view_weights=None):
+    def forward(self, ref_feature: Tensor, src_features: Tensor, ref_proj: Tensor, src_projs: Tensor,
+                depth_sample: Tensor, iteration: int,
+                grid: Tensor, weight: Tensor, view_weights: Tensor):
 
         num_src_features = len(src_features)
         num_src_projs = len(src_projs)
@@ -107,7 +102,7 @@ class Evaluation(nn.Module):
 
         num_depth = depth_sample.size()[1]
         assert num_src_features == num_src_projs, "PatchMatch Evaluation: Different number of images and projection matrices"
-        if view_weights is not None:
+        if not is_empty(view_weights):
             assert num_src_features == view_weights.size()[
                 1], "PatchMatch Evaluation: Different number of images and view weights"
 
@@ -117,7 +112,7 @@ class Evaluation(nn.Module):
 
         similarity_sum = 0
 
-        if self.stage == 3 and view_weights is None:
+        if self.stage == 3 and is_empty(view_weights):
             view_weights = []
             for src_feature, src_proj in zip(src_features, src_projs):
 
@@ -137,15 +132,24 @@ class Evaluation(nn.Module):
                     similarity_sum += similarity * view_weight.unsqueeze(1)
                     pixel_wise_weight_sum += view_weight.unsqueeze(1)
 
-                del warped_feature, src_feature, src_proj, similarity, view_weight
-            del src_features, src_projs
+                del warped_feature
+                del src_feature
+                del src_proj
+                del similarity
+                del view_weight
+            del src_features
+            del src_projs
             view_weights = torch.cat(view_weights, dim=1)  # [B,4,H,W], 4 is the number of source views
             # aggregated matching cost across all the source views
             similarity = similarity_sum.div_(pixel_wise_weight_sum)
-            del ref_feature, pixel_wise_weight_sum, similarity_sum
+            del ref_feature
+            del pixel_wise_weight_sum
+            del similarity_sum
             # adaptive spatial cost aggregation
             score = self.similarity_net(similarity, grid, weight)
-            del similarity, grid, weight
+            del similarity
+            del grid
+            del weight
 
             # apply softmax to get probability
             softmax = nn.LogSoftmax(dim=1)
@@ -174,16 +178,25 @@ class Evaluation(nn.Module):
                     similarity_sum += similarity * view_weight.unsqueeze(1)
                     pixel_wise_weight_sum += view_weight.unsqueeze(1)
 
-                del warped_feature, src_feature, src_proj, similarity, view_weight
-            del src_features, src_projs
+                del warped_feature
+                del src_feature
+                del src_proj
+                del similarity
+                del view_weight
+            del src_features
+            del src_projs
 
             # [B, G, num_depth, H, W]
             similarity = similarity_sum.div_(pixel_wise_weight_sum)
 
-            del ref_feature, pixel_wise_weight_sum, similarity_sum
+            del ref_feature
+            del pixel_wise_weight_sum
+            del similarity_sum
 
             score = self.similarity_net(similarity, grid, weight)
-            del similarity, grid, weight
+            del similarity
+            del grid
+            del weight
 
             softmax = nn.LogSoftmax(dim=1)
             score = softmax(score)
@@ -191,7 +204,7 @@ class Evaluation(nn.Module):
 
             if self.stage == 1 and iteration == self.iterations:
                 # depth regression: inverse depth regression
-                depth_index = torch.arange(0, num_depth, 1, device=device).view(1, num_depth, 1, 1)
+                depth_index = torch.arange(0, num_depth, 1, device=device, dtype=torch.float32).view(1, num_depth, 1, 1)
                 depth_index = torch.sum(depth_index * score, dim=1)
 
                 inverse_min_depth = 1.0 / depth_sample[:, -1, :, :]
@@ -210,9 +223,10 @@ class Evaluation(nn.Module):
 
 
 class PatchMatch(nn.Module):
-    def __init__(self, random_initialization=False, propagation_out_range=2,
-                 patch_match_iteration=2, patch_match_num_sample=16, patch_match_interval_scale=0.025,
-                 num_feature=64, group_size=8, propagate_neighbors=16, stage=3, evaluate_neighbors=9):
+    def __init__(self, random_initialization: bool = False, propagation_out_range: int = 2,
+                 patch_match_iteration: int = 2, patch_match_num_sample: int = 16, patch_match_interval_scale: float = 0.025,
+                 num_feature: int = 64, group_size: int = 8, propagate_neighbors: int = 16, stage: int = 3,
+                 evaluate_neighbors: int = 9):
         super(PatchMatch, self).__init__()
         self.random_initialization = random_initialization
         self.depth_initialization = DepthInitialization(patch_match_num_sample)
@@ -254,7 +268,7 @@ class PatchMatch(nn.Module):
         self.feature_weight_net = FeatureWeightNet(self.evaluate_neighbors, self.group_size)
 
     # compute the offset for adaptive propagation
-    def get_propagation_grid(self, batch, height, width, offset, device):
+    def get_propagation_grid(self, batch_size: int, height: int, width: int, offset: int, device):
         if self.propagate_neighbors == 4:
             original_offset = [[-self.dilation, 0],
                                [0, -self.dilation], [0, self.dilation],
@@ -279,7 +293,7 @@ class PatchMatch(nn.Module):
             y_grid, x_grid = y_grid.contiguous(), x_grid.contiguous()
             y_grid, x_grid = y_grid.view(height * width), x_grid.view(height * width)
             xy = torch.stack((x_grid, y_grid))  # [2, H*W]
-            xy = torch.unsqueeze(xy, 0).repeat(batch, 1, 1)  # [B, 2, H*W]
+            xy = torch.unsqueeze(xy, 0).repeat(batch_size, 1, 1)  # [B, 2, H*W]
 
         xy_list = []
         for i in range(len(original_offset)):
@@ -292,18 +306,21 @@ class PatchMatch(nn.Module):
 
         xy = torch.cat(xy_list, dim=2)  # [B, 2, 9, H*W]
 
-        del xy_list, x_grid, y_grid
+        del xy_list
+        del x_grid
+        del y_grid
 
         x_normalized = xy[:, 0, :, :] / ((width - 1) / 2) - 1
         y_normalized = xy[:, 1, :, :] / ((height - 1) / 2) - 1
         del xy
         grid = torch.stack((x_normalized, y_normalized), dim=3)  # [B, 9, H*W, 2]
-        del x_normalized, y_normalized
-        grid = grid.view(batch, self.propagate_neighbors * height, width, 2)
+        del x_normalized
+        del y_normalized
+        grid = grid.view(batch_size, self.propagate_neighbors * height, width, 2)
         return grid
 
     # compute the offsets for adaptive spatial cost aggregation in adaptive evaluation
-    def get_evaluation_grid(self, batch, height, width, offset, device):
+    def get_evaluation_grid(self, batch_size: int, height: int, width: int, offset: int, device):
 
         if self.evaluate_neighbors == 9:
             dilation = self.dilation - 1  # dilation of evaluation is a little smaller than propagation
@@ -328,7 +345,7 @@ class PatchMatch(nn.Module):
             y_grid, x_grid = y_grid.contiguous(), x_grid.contiguous()
             y_grid, x_grid = y_grid.view(height * width), x_grid.view(height * width)
             xy = torch.stack((x_grid, y_grid))  # [2, H*W]
-            xy = torch.unsqueeze(xy, 0).repeat(batch, 1, 1)  # [B, 2, H*W]
+            xy = torch.unsqueeze(xy, 0).repeat(batch_size, 1, 1)  # [B, 2, H*W]
 
         xy_list = []
         for i in range(len(original_offset)):
@@ -341,24 +358,27 @@ class PatchMatch(nn.Module):
 
         xy = torch.cat(xy_list, dim=2)  # [B, 2, 9, H*W]
 
-        del xy_list, x_grid, y_grid
+        del xy_list
+        del x_grid
+        del y_grid
         x_normalized = xy[:, 0, :, :] / ((width - 1) / 2) - 1
         y_normalized = xy[:, 1, :, :] / ((height - 1) / 2) - 1
         del xy
         grid = torch.stack((x_normalized, y_normalized), dim=3)  # [B, 9, H*W, 2]
-        del x_normalized, y_normalized
-        grid = grid.view(batch, len(original_offset) * height, width, 2)
+        del x_normalized
+        del y_normalized
+        grid = grid.view(batch_size, len(original_offset) * height, width, 2)
         return grid
 
-    def forward(self, ref_feature, src_features, ref_proj, src_projs, depth_min, depth_max,
-                depth=None, view_weights=None):
+    def forward(self, ref_feature: Tensor, src_features: Tensor, ref_proj: Tensor, src_projs: Tensor, depth_min: float,
+                depth_max: float, depth: Tensor, view_weights: Tensor):
         depth_samples = []
 
         device = ref_feature.get_device()
         batch, _, height, width = ref_feature.size()
 
         # the learned additional 2D offsets for adaptive propagation
-        propagation_grid = None
+        propagation_grid = torch.Tensor()
         if self.propagate_neighbors > 0:
             # last iteration on stage 1 does not have propagation (photometric consistency filtering)
             if not (self.stage == 1 and self.patch_match_iteration == 1):
@@ -375,10 +395,11 @@ class PatchMatch(nn.Module):
 
         # first iteration of PatchMatch
         iteration = 1
+        batch_size = ref_feature.size()[0]
         if self.random_initialization:
             # first iteration on stage 3, random initialization, no adaptive propagation
-            depth_sample = self.depth_initialization(True, depth_min, depth_max, height, width,
-                                                     self.patch_match_interval_scale, device)
+            depth_sample = self.depth_initialization(batch_size, depth_min, depth_max, height, width,
+                                                     self.patch_match_interval_scale, device, depth)
             # weights for adaptive spatial cost aggregation in adaptive evaluation
             weight = depth_weight(depth_sample.detach(), depth_min, depth_max, eval_grid.detach(),
                                   self.patch_match_interval_scale,
@@ -395,8 +416,8 @@ class PatchMatch(nn.Module):
             depth_samples.append(depth_sample)
         else:
             # subsequent iterations, local perturbation based on previous result
-            depth_sample = self.depth_initialization(False, depth_min, depth_max,
-                                                     height, width, self.patch_match_interval_scale, device, depth)
+            depth_sample = self.depth_initialization(batch_size, depth_min, depth_max, height, width,
+                                                     self.patch_match_interval_scale, device, depth)
             del depth
 
             # adaptive propagation
@@ -419,7 +440,7 @@ class PatchMatch(nn.Module):
 
         for iteration in range(2, self.patch_match_iteration + 1):
             # local perturbation based on previous result
-            depth_sample = self.depth_initialization(False, depth_min, depth_max, height, width,
+            depth_sample = self.depth_initialization(batch_size, depth_min, depth_max, height, width,
                                                      self.patch_match_interval_scale, device, depth_sample)
 
             # adaptive propagation
@@ -447,7 +468,7 @@ class PatchMatch(nn.Module):
 # first, do convolution on aggregated cost among all the source views
 # second, perform adaptive spatial cost aggregation to get final cost
 class SimilarityNet(nn.Module):
-    def __init__(self, group_size, neighbors=9):
+    def __init__(self, group_size: int, neighbors: int = 9):
         super(SimilarityNet, self).__init__()
         self.neighbors = neighbors
 
@@ -455,7 +476,7 @@ class SimilarityNet(nn.Module):
         self.conv1 = ConvBnReLU3D(16, 8, 1, 1, 0)
         self.similarity = nn.Conv3d(8, 1, kernel_size=1, stride=1, padding=0)
 
-    def forward(self, x1, grid, weight):
+    def forward(self, x1: Tensor, grid: Tensor, weight: Tensor):
         # x1: [B, G, num_depth, H, W], aggregated cost among all the source views with pixel-wise view weight
         # grid: position of sampling points in adaptive spatial cost aggregation
         # weight: weight of sampling points in adaptive spatial cost aggregation, combination of 
@@ -465,10 +486,7 @@ class SimilarityNet(nn.Module):
 
         x1 = self.similarity(self.conv1(self.conv0(x1))).squeeze(1)
 
-        x1 = nnfun.grid_sample(x1,
-                               grid,
-                               mode='bilinear',
-                               padding_mode='border')
+        x1 = nnfun.grid_sample(x1, grid, mode='bilinear', padding_mode='border')
 
         # [B,num_depth,9,H,W]
         x1 = x1.view(batch, num_depth, self.neighbors, height, width)
@@ -479,7 +497,7 @@ class SimilarityNet(nn.Module):
 # adaptive spatial cost aggregation
 # weight based on similarity of features of sampling points and center pixel
 class FeatureWeightNet(nn.Module):
-    def __init__(self, neighbors=9, group_size=8):
+    def __init__(self, neighbors: int = 9, group_size: int = 8):
         super(FeatureWeightNet, self).__init__()
         self.neighbors = neighbors
         self.G = group_size
@@ -490,15 +508,12 @@ class FeatureWeightNet(nn.Module):
 
         self.output = nn.Sigmoid()
 
-    def forward(self, ref_feature, grid):
+    def forward(self, ref_feature: Tensor, grid: Tensor):
         # ref_feature: reference feature map
         # grid: position of sampling points in adaptive spatial cost aggregation
         batch, feature_channel, height, width = ref_feature.size()
 
-        x = nnfun.grid_sample(ref_feature,
-                              grid,
-                              mode='bilinear',
-                              padding_mode='border')
+        x = nnfun.grid_sample(ref_feature, grid, mode='bilinear', padding_mode='border')
 
         # [B,G,C//G,H,W]
         ref_feature = ref_feature.view(batch, self.G, feature_channel // self.G, height, width)
@@ -515,22 +530,18 @@ class FeatureWeightNet(nn.Module):
 
 # adaptive spatial cost aggregation
 # weight based on depth difference of sampling points and center pixel
-def depth_weight(depth_sample, depth_min, depth_max, grid, patch_match_interval_scale, evaluate_neighbors):
+def depth_weight(depth_sample: Tensor, depth_min: float, depth_max: float, grid: Tensor,
+                 patch_match_interval_scale: float, neighbors: int):
     # grid: position of sampling points in adaptive spatial cost aggregation
-    neighbors = evaluate_neighbors
     batch, num_depth, height, width = depth_sample.size()
     # normalization
     x = 1.0 / depth_sample
     del depth_sample
     inverse_depth_min = 1.0 / depth_min
     inverse_depth_max = 1.0 / depth_max
-    x = (x - inverse_depth_max.view(batch, 1, 1, 1)) / (inverse_depth_min.view(batch, 1, 1, 1)
-                                                        - inverse_depth_max.view(batch, 1, 1, 1))
+    x = (x - inverse_depth_max) / (inverse_depth_min - inverse_depth_max)
 
-    x1 = nnfun.grid_sample(x,
-                           grid,
-                           mode='bilinear',
-                           padding_mode='border')
+    x1 = nnfun.grid_sample(x.float(), grid, mode='bilinear', padding_mode='border')
     del grid
     x1 = x1.view(batch, num_depth, neighbors, height, width)
 
@@ -548,14 +559,14 @@ def depth_weight(depth_sample, depth_min, depth_max, grid, patch_match_interval_
 
 # estimate pixel-wise view weight
 class PixelwiseNet(nn.Module):
-    def __init__(self, group_size):
+    def __init__(self, group_size: int):
         super(PixelwiseNet, self).__init__()
         self.conv0 = ConvBnReLU3D(group_size, 16, 1, 1, 0)
         self.conv1 = ConvBnReLU3D(16, 8, 1, 1, 0)
         self.conv2 = nn.Conv3d(8, 1, kernel_size=1, stride=1, padding=0)
         self.output = nn.Sigmoid()
 
-    def forward(self, x1):
+    def forward(self, x1: Tensor):
         # x1: [B, G, num_depth, H, W]
 
         # [B, num_depth, H, W]
