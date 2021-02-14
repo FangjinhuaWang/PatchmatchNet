@@ -5,7 +5,8 @@ from torch import Tensor
 
 
 class ConvBnReLU(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, pad: int = 1, dilation: int = 1):
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, pad: int = 1,
+                 dilation: int = 1):
         super(ConvBnReLU, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=pad, dilation=dilation,
                               bias=False)
@@ -16,7 +17,8 @@ class ConvBnReLU(nn.Module):
 
 
 class ConvBnReLU3D(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, pad: int = 1, dilation: int = 1):
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, pad: int = 1,
+                 dilation: int = 1):
         super(ConvBnReLU3D, self).__init__()
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size, stride=stride, padding=pad, dilation=dilation,
                               bias=False)
@@ -27,7 +29,8 @@ class ConvBnReLU3D(nn.Module):
 
 
 class ConvBnReLU1D(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, pad: int = 1, dilation: int = 1):
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, pad: int = 1,
+                 dilation: int = 1):
         super(ConvBnReLU1D, self).__init__()
         self.conv = nn.Conv1d(in_channels, out_channels, kernel_size, stride=stride, padding=pad, dilation=dilation,
                               bias=False)
@@ -63,32 +66,24 @@ def differentiable_warping(src_fea: Tensor, src_proj: Tensor, ref_proj: Tensor, 
 
         y, x = torch.meshgrid([torch.arange(0, height, dtype=torch.float32, device=src_fea.device),
                                torch.arange(0, width, dtype=torch.float32, device=src_fea.device)])
-        y, x = y.contiguous(), x.contiguous()
-        y, x = y.view(height * width), x.view(height * width)
-        xyz = torch.stack((x, y, torch.ones_like(x, dtype=torch.float32)))  # [3, H*W]
-        xyz = torch.unsqueeze(xyz, 0).repeat(batch, 1, 1)  # [B, 3, H*W]
-        rot_xyz = torch.matmul(rot, xyz)  # [B, 3, H*W]
+        y, x = y.contiguous().view(height * width), x.contiguous().view(height * width)
+        xyz = torch.stack((x, y, torch.ones_like(x, dtype=torch.float32))).unsqueeze(0).repeat(batch, 1, 1)  # [B, 3, H*W]
+        xyz = torch.matmul(rot, xyz).unsqueeze(2).repeat(1, 1, num_depth, 1)  # [B, 3, H*W]
 
-        rot_depth_xyz = rot_xyz.unsqueeze(2).repeat(1, 1, num_depth, 1) * depth_samples.view(batch, 1, num_depth,
-                                                                                             height * width)  # [B, 3, num_depth, H*W]
-        proj_xyz = rot_depth_xyz + trans.view(batch, 3, 1, 1)  # [B, 3, num_depth, H*W]
+        xyz = xyz * depth_samples.view(batch, 1, num_depth, height * width) + trans.view(batch, 3, 1, 1)  # [B, 3, num_depth, H*W]
+
         # avoid negative depth
-        negative_depth_mask = proj_xyz[:, 2:] <= 1e-3
-        proj_xyz[:, 0:1][negative_depth_mask] = width
-        proj_xyz[:, 1:2][negative_depth_mask] = height
-        proj_xyz[:, 2:3][negative_depth_mask] = 1
-        proj_xy = proj_xyz[:, :2, :, :] / proj_xyz[:, 2:3, :, :]  # [B, 2, num_depth, H*W]
+        negative_depth_mask = xyz[:, 2:] <= 1e-3
+        xyz[:, 0:1][negative_depth_mask] = width
+        xyz[:, 1:2][negative_depth_mask] = height
+        xyz[:, 2:3][negative_depth_mask] = 1
+        proj_xy = xyz[:, :2, :, :] / xyz[:, 2:3, :, :]  # [B, 2, num_depth, H*W]
         proj_x_normalized = proj_xy[:, 0, :, :] / ((width - 1) / 2) - 1  # [B, num_depth, H*W]
         proj_y_normalized = proj_xy[:, 1, :, :] / ((height - 1) / 2) - 1
         proj_xy = torch.stack((proj_x_normalized, proj_y_normalized), dim=3)  # [B, num_depth, H*W, 2]
-        grid = proj_xy.float()
 
-    warped_src_fea = nnfun.grid_sample(src_fea, grid.view(batch, num_depth * height, width, 2), mode='bilinear',
-                                       padding_mode='zeros', align_corners=True)
-
-    warped_src_fea = warped_src_fea.view(batch, channels, num_depth, height, width)
-
-    return warped_src_fea
+    return nnfun.grid_sample(src_fea, proj_xy.view(batch, num_depth * height, width, 2), mode='bilinear',
+                             padding_mode='zeros', align_corners=True).view(batch, channels, num_depth, height, width)
 
 
 # p: probability volume [B, D, H, W]
@@ -100,6 +95,7 @@ def depth_regression(p: Tensor, depth_values: Tensor):
     depth = torch.sum(p * depth_values, 1)
     depth = depth.unsqueeze(1)
     return depth
+
 
 def is_empty(x: Tensor):
     return x.nelement() == 0
