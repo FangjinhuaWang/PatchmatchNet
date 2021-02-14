@@ -1,6 +1,7 @@
 from .patchmatch import *
 from torch import Tensor
 
+
 class FeatureNet(nn.Module):
     def __init__(self):
         super(FeatureNet, self).__init__()
@@ -28,7 +29,7 @@ class FeatureNet(nn.Module):
         self.output3 = nn.Conv2d(64, 16, 1, bias=False)
 
     def forward(self, x: Tensor):
-        output_feature = {}
+        output_feature = [torch.Tensor(), torch.Tensor(), torch.Tensor(), torch.Tensor()]
 
         conv1 = self.conv1(self.conv0(x))
         conv4 = self.conv4(self.conv3(self.conv2(conv1)))
@@ -36,16 +37,16 @@ class FeatureNet(nn.Module):
         conv7 = self.conv7(self.conv6(self.conv5(conv4)))
         conv10 = self.conv10(self.conv9(self.conv8(conv7)))
 
-        output_feature['stage_3'] = self.output1(conv10)
+        output_feature[3] = self.output1(conv10)
 
-        intra_feat = nnfun.interpolate(conv10, scale_factor=2, mode="bilinear") + self.inner1(conv7)
+        intra_feat = nnfun.interpolate(conv10, scale_factor=2, mode='bilinear') + self.inner1(conv7)
         del conv7
         del conv10
-        output_feature['stage_2'] = self.output2(intra_feat)
+        output_feature[2] = self.output2(intra_feat)
 
-        intra_feat = nnfun.interpolate(intra_feat, scale_factor=2, mode="bilinear") + self.inner2(conv4)
+        intra_feat = nnfun.interpolate(intra_feat, scale_factor=2, mode='bilinear') + self.inner2(conv4)
         del conv4
-        output_feature['stage_1'] = self.output3(intra_feat)
+        output_feature[1] = self.output3(intra_feat)
 
         del intra_feat
 
@@ -81,7 +82,7 @@ class Refinement(nn.Module):
         res = self.res(self.conv3(cat))
         del cat
 
-        depth = nnfun.interpolate(depth, scale_factor=2, mode="nearest") + res
+        depth = nnfun.interpolate(depth, scale_factor=2, mode='bilinear') + res
         # convert the normalized depth back
         depth = depth * (depth_max - depth_min) + depth_min
 
@@ -95,43 +96,34 @@ class PatchMatchNet(nn.Module):
 
         self.stages = 4
         self.feature = FeatureNet()
-        self.patch_match_num_sample = patch_match_num_sample
+        self.num_depth = patch_match_num_sample[0]
 
-        num_features = [8, 16, 32, 64]
-
-        self.propagate_neighbors = propagate_neighbors
-        self.evaluate_neighbors = evaluate_neighbors
+        num_features = [16, 32, 64]
         # number of groups for group-wise correlation
-        self.G = [4, 8, 8]
+        num_groups = [4, 8, 8]
 
-        for stage in range(self.stages - 1):
-
-            if stage == 2:
-                patch_match = PatchMatch(True, propagation_range[stage], patch_match_iteration[stage],
-                                         patch_match_num_sample[stage], patch_match_interval_scale[stage],
-                                         num_features[stage + 1], self.G[stage], self.propagate_neighbors[stage],
-                                         stage + 1, evaluate_neighbors[stage])
-            else:
-                patch_match = PatchMatch(False, propagation_range[stage], patch_match_iteration[stage],
-                                         patch_match_num_sample[stage], patch_match_interval_scale[stage],
-                                         num_features[stage + 1], self.G[stage], self.propagate_neighbors[stage],
-                                         stage + 1, evaluate_neighbors[stage])
-            setattr(self, f'patchmatch_{stage + 1}', patch_match)
+        self.patchmatch_1 = PatchMatch(propagation_range[0], patch_match_iteration[0], patch_match_num_sample[0],
+                                       patch_match_interval_scale[0], num_features[0], num_groups[0],
+                                       propagate_neighbors[0], evaluate_neighbors[0], 1)
+        self.patchmatch_2 = PatchMatch(propagation_range[1], patch_match_iteration[1], patch_match_num_sample[1],
+                                       patch_match_interval_scale[1], num_features[1], num_groups[1],
+                                       propagate_neighbors[1], evaluate_neighbors[1], 2)
+        self.patchmatch_3 = PatchMatch(propagation_range[2], patch_match_iteration[2], patch_match_num_sample[2],
+                                       patch_match_interval_scale[2], num_features[2], num_groups[2],
+                                       propagate_neighbors[2], evaluate_neighbors[2], 3)
 
         self.upsample_net = Refinement()
 
-    def forward(self, images, proj_matrices, depth_min: float, depth_max: float):
+    def forward(self, images: Tensor, proj_matrices, depth_min: float, depth_max: float):
 
-        images_0 = torch.unbind(images['stage_0'], 1)
+        images_0 = torch.unbind(images, 1)
         images_0_ref = images_0[0]
 
-        self.proj_matrices_0 = torch.unbind(proj_matrices['stage_0'].float(), 1)
-        self.proj_matrices_1 = torch.unbind(proj_matrices['stage_1'].float(), 1)
-        self.proj_matrices_2 = torch.unbind(proj_matrices['stage_2'].float(), 1)
-        self.proj_matrices_3 = torch.unbind(proj_matrices['stage_3'].float(), 1)
+        proj_mat_list = [proj_matrices['stage_0'].float(), proj_matrices['stage_1'].float(),
+                         proj_matrices['stage_2'].float(), proj_matrices['stage_3'].float()]
         del proj_matrices
 
-        assert len(images_0) == len(self.proj_matrices_0), "Different number of images and projection matrices"
+        assert len(images_0) == proj_mat_list[0].size()[1], 'Different number of images and projection matrices'
 
         # step 1. Multi-scale feature extraction
         features = []
@@ -145,66 +137,44 @@ class PatchMatchNet(nn.Module):
         depth = torch.Tensor()
         score = torch.Tensor()
         view_weights = torch.Tensor()
-        depth_patch_match = {}
-        refined_depth = {}
 
-        for stage in reversed(range(1, self.stages)):
-            src_features_l = [src_fea[f'stage_{stage}'] for src_fea in src_features]
-            projs_l = getattr(self, f'proj_matrices_{stage}')
-            ref_proj, src_projs = projs_l[0], projs_l[1:]
+        patch_match = [self.patchmatch_1, self.patchmatch_1, self.patchmatch_2, self.patchmatch_3]
+        for stage in range(self.stages - 1, 0, -1):
+            src_features_stage = [src_fea[stage] for src_fea in src_features]
+            proj_stage = torch.unbind(proj_mat_list[stage], 1)
+            ref_proj, src_projs = proj_stage[0], proj_stage[1:]
 
-            depth, score, view_weights = getattr(self, f'patchmatch_{stage}')(ref_feature[f'stage_{stage}'],
-                                                                              src_features_l,
-                                                                              ref_proj, src_projs,
-                                                                              depth_min, depth_max, depth=depth,
-                                                                              view_weights=view_weights)
+            depth, score, view_weights = patch_match[stage](ref_feature[stage], src_features_stage, ref_proj, src_projs,
+                                                            depth_min, depth_max, depth, view_weights)
 
-            del src_features_l
+            del src_features_stage
+            del proj_stage
             del ref_proj
             del src_projs
-            del projs_l
 
-            depth_patch_match[f'stage_{stage}'] = depth
-
-            depth = depth[-1].detach()
+            depth = depth.detach()
             if stage > 1:
                 # upsampling the depth map and pixel-wise view weight for next stage
-                depth = nnfun.interpolate(depth,
-                                          scale_factor=2, mode='nearest')
-                view_weights = nnfun.interpolate(view_weights,
-                                                 scale_factor=2, mode='nearest')
+                depth = nnfun.interpolate(depth, scale_factor=2, mode='bilinear')
+                view_weights = nnfun.interpolate(view_weights, scale_factor=2, mode='bilinear')
 
         # step 3. Refinement  
         depth = self.upsample_net(images_0_ref, depth, depth_min, depth_max)
-        refined_depth['stage_0'] = depth
 
-        del depth
         del ref_feature
         del src_features
 
-        if self.training:
-            return {"refined_depth": refined_depth,
-                    "depth_patch_match": depth_patch_match,
-                    }
+        score_sum4 = 4 * nnfun.avg_pool3d(nnfun.pad(score.unsqueeze(1), pad=(0, 0, 0, 0, 1, 2)), (4, 1, 1), stride=1,
+                                          padding=0).squeeze(1)
+        # [B, 1, H, W]
+        depth_index = depth_regression(score, depth_values=torch.arange(self.num_depth, device=score.device,
+                                                                        dtype=torch.float32)).long()
+        depth_index = torch.clamp(depth_index, 0, self.num_depth - 1)
+        confidence = torch.gather(score_sum4, 1, depth_index)
+        confidence = nnfun.interpolate(confidence, scale_factor=2, mode='bilinear')
+        confidence = confidence.squeeze(1)
 
-        else:
-            num_depth = self.patch_match_num_sample[0]
-            score_sum4 = 4 * nnfun.avg_pool3d(nnfun.pad(score.unsqueeze(1), pad=(0, 0, 0, 0, 1, 2)), (4, 1, 1),
-                                              stride=1,
-                                              padding=0).squeeze(1)
-            # [B, 1, H, W]
-            depth_index = depth_regression(score, depth_values=torch.arange(num_depth, device=score.device,
-                                                                            dtype=torch.float32)).long()
-            depth_index = torch.clamp(depth_index, 0, num_depth - 1)
-            photometric_confidence = torch.gather(score_sum4, 1, depth_index)
-            photometric_confidence = nnfun.interpolate(photometric_confidence,
-                                                       scale_factor=2, mode='nearest')
-            photometric_confidence = photometric_confidence.squeeze(1)
-
-            return {"refined_depth": refined_depth,
-                    "depth_patch_match": depth_patch_match,
-                    "photometric_confidence": photometric_confidence,
-                    }
+        return {'depth': depth, 'confidence': confidence}
 
 
 def patch_match_net_loss(depth_patch_match, refined_depth, depth_gt, mask):

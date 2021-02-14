@@ -126,7 +126,7 @@ def save_depth():
     # load checkpoint file specified by args.checkpoint_path
     print("loading model {}".format(args.checkpoint_path))
     state_dict = torch.load(args.checkpoint_path)
-    model.load_state_dict(state_dict['model'])
+    model.load_state_dict(state_dict['model'], strict=False)
     model.eval()
     # cn = torch.jit.script(PatchMatchContainer(state_dict['model']))
     # cn.save(args.checkpoint_path + '.jit')
@@ -135,7 +135,7 @@ def save_depth():
         for batch_idx, sample in enumerate(image_loader):
             start_time = time.time()
             sample_cuda = to_cuda(sample)
-            outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_min"].item(),
+            outputs = model(sample_cuda["imgs"]['stage_0'], sample_cuda["proj_matrices"], sample_cuda["depth_min"].item(),
                             sample_cuda["depth_max"].item())
             # tm = torch.jit.trace(model, sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_min"],
             #                      sample_cuda["depth_max"])
@@ -147,8 +147,7 @@ def save_depth():
             filenames = sample["filename"]
 
             # save depth maps and confidence maps
-            for filename, depth_est, photometric_confidence in zip(filenames, outputs["refined_depth"]['stage_0'],
-                                                                   outputs["photometric_confidence"]):
+            for filename, depth_est, photometric_confidence in zip(filenames, outputs['depth'], outputs['confidence']):
                 depth_filename = os.path.join(args.out_dir, filename.format('depth_est', '.' + args.file_format))
                 confidence_filename = os.path.join(args.out_dir, filename.format('confidence', '.' + args.file_format))
                 os.makedirs(depth_filename.rsplit('/', 1)[0], exist_ok=True)
