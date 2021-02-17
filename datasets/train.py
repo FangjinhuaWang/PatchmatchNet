@@ -1,15 +1,13 @@
 from torch.utils.data import Dataset
-import numpy as np
 import os
-from PIL import Image
 from datasets.data_io import *
 import cv2
 import random
 
 
-class MVSDataset(Dataset):
+class MVSTrainDataset(Dataset):
     def __init__(self, datapath, listfile, mode, nviews, robust_train = False):
-        super(MVSDataset, self).__init__()
+        super(MVSTrainDataset, self).__init__()
 
         self.stages = 4
         self.datapath = datapath

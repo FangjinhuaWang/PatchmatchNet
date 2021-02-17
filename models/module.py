@@ -74,28 +74,17 @@ def differentiable_warping(src_fea: Tensor, src_proj: Tensor, ref_proj: Tensor, 
 
         # avoid negative depth
         negative_depth_mask = xyz[:, 2:] <= 1e-3
-        xyz[:, 0:1][negative_depth_mask] = width
-        xyz[:, 1:2][negative_depth_mask] = height
-        xyz[:, 2:3][negative_depth_mask] = 1
+        xyz[:, 0:1][negative_depth_mask] = float(width)
+        xyz[:, 1:2][negative_depth_mask] = float(height)
+        xyz[:, 2:3][negative_depth_mask] = 1.0
         proj_xy = xyz[:, :2, :, :] / xyz[:, 2:3, :, :]  # [B, 2, num_depth, H*W]
         proj_x_normalized = proj_xy[:, 0, :, :] / ((width - 1) / 2) - 1  # [B, num_depth, H*W]
         proj_y_normalized = proj_xy[:, 1, :, :] / ((height - 1) / 2) - 1
         proj_xy = torch.stack((proj_x_normalized, proj_y_normalized), dim=3)  # [B, num_depth, H*W, 2]
 
     return nnfun.grid_sample(src_fea, proj_xy.view(batch, num_depth * height, width, 2), mode='bilinear',
-                             padding_mode='zeros', align_corners=True).view(batch, channels, num_depth, height, width)
-
-
-# p: probability volume [B, D, H, W]
-# depth_values: discrete depth values [B, D]
-# get expected value, soft argmin
-# return: depth [B, 1, H, W]
-def depth_regression(p: Tensor, depth_values: Tensor):
-    depth_values = depth_values.view(*depth_values.shape, 1, 1)
-    depth = torch.sum(p * depth_values, 1)
-    depth = depth.unsqueeze(1)
-    return depth
+                             padding_mode='zeros', align_corners=False).view(batch, channels, num_depth, height, width)
 
 
 def is_empty(x: Tensor):
-    return x.nelement() == 0
+    return x.numel() == 0

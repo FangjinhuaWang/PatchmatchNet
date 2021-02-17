@@ -11,7 +11,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from datasets import find_dataset_def
+from datasets.train import MVSTrainDataset
 from models import *
 from utils import *
 
@@ -21,7 +21,6 @@ parser = argparse.ArgumentParser(description='PatchMatchNet for high-resolution 
 parser.add_argument('--mode', default='train', help='train or val', choices=['train', 'val'])
 parser.add_argument('--model', default='PatchMatchNet', help='select model')
 
-parser.add_argument('--dataset', default='dtu_yao', help='select dataset')
 parser.add_argument('--trainpath', help='train datapath')
 parser.add_argument('--valpath', help='validation datapath')
 parser.add_argument('--trainlist', help='train list')
@@ -82,10 +81,8 @@ print("argv:", sys.argv[1:])
 print_args(args)
 
 # dataset, dataloader
-MVSDataset = find_dataset_def(args.dataset)
-if args.dataset == 'dtu_yao':
-    train_dataset = MVSDataset(args.trainpath, args.trainlist, "train", 5, robust_train=True)
-    test_dataset = MVSDataset(args.valpath, args.vallist, "val", 5,  robust_train=False)
+train_dataset = MVSTrainDataset(args.trainpath, args.trainlist, "train", 5, robust_train=True)
+test_dataset = MVSTrainDataset(args.valpath, args.vallist, "val", 5, robust_train=False)
 
 TrainImgLoader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_workers=8, drop_last=True)
 TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
@@ -304,4 +301,3 @@ if __name__ == '__main__':
         train()
     elif args.mode == "val":
         test()
-    
