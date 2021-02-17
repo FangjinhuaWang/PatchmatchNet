@@ -168,7 +168,7 @@ def read_pfm(filename: str):
 
 # Save map in pfm file
 def save_pfm(filename: str, data, scale=1):
-    file = open(filename, "wb")
+    file = open(filename, 'wb')
 
     data = np.flipud(data)
     # print(image.shape)

@@ -18,7 +18,7 @@ class MVSTrainDataset(Dataset):
         self.robust_train = robust_train
         
 
-        assert self.mode in ["train", "val", "test"]
+        assert self.mode in ['train', 'val', 'test']
         self.metas = self.build_list()
 
     def build_list(self):
@@ -28,7 +28,7 @@ class MVSTrainDataset(Dataset):
             scans = [line.rstrip() for line in scans]
 
         for scan in scans:
-            pair_file = "Cameras_1/pair.txt"
+            pair_file = 'Cameras_1/pair.txt'
             
             with open(os.path.join(self.datapath, pair_file)) as f:
                 self.num_viewpoint = int(f.readline())
@@ -39,7 +39,7 @@ class MVSTrainDataset(Dataset):
                     # light conditions 0-6
                     for light_idx in range(7):
                         metas.append((scan, light_idx, ref_view, src_views))
-        print("dataset", self.mode, "metas:", len(metas))
+        print('dataset', self.mode, 'metas:', len(metas))
         return metas
 
     def __len__(self):
@@ -65,10 +65,10 @@ class MVSTrainDataset(Dataset):
         np_img = np.array(img, dtype=np.float32) / 255.
         h, w, _ = np_img.shape
         np_img_ms = {
-            "stage_3": cv2.resize(np_img, (w//8, h//8), interpolation=cv2.INTER_LINEAR), 
-            "stage_2": cv2.resize(np_img, (w//4, h//4), interpolation=cv2.INTER_LINEAR),
-            "stage_1": cv2.resize(np_img, (w//2, h//2), interpolation=cv2.INTER_LINEAR),
-            "stage_0": np_img
+            'stage_3': cv2.resize(np_img, (w//8, h//8), interpolation=cv2.INTER_LINEAR), 
+            'stage_2': cv2.resize(np_img, (w//4, h//4), interpolation=cv2.INTER_LINEAR),
+            'stage_1': cv2.resize(np_img, (w//2, h//2), interpolation=cv2.INTER_LINEAR),
+            'stage_0': np_img
         }
         return np_img_ms
         
@@ -96,10 +96,10 @@ class MVSTrainDataset(Dataset):
 
         h, w = np_img.shape
         np_img_ms = {
-            "stage_3": cv2.resize(np_img, (w//8, h//8), interpolation=cv2.INTER_NEAREST),
-            "stage_2": cv2.resize(np_img, (w//4, h//4), interpolation=cv2.INTER_NEAREST),
-            "stage_1": cv2.resize(np_img, (w//2, h//2), interpolation=cv2.INTER_NEAREST),
-            "stage_0": np_img
+            'stage_3': cv2.resize(np_img, (w//8, h//8), interpolation=cv2.INTER_NEAREST),
+            'stage_2': cv2.resize(np_img, (w//4, h//4), interpolation=cv2.INTER_NEAREST),
+            'stage_1': cv2.resize(np_img, (w//2, h//2), interpolation=cv2.INTER_NEAREST),
+            'stage_0': np_img
         }
         return np_img_ms
         
@@ -113,10 +113,10 @@ class MVSTrainDataset(Dataset):
         h, w = depth_lr.shape
         depth_lr_ms = {
             
-            "stage_3": cv2.resize(depth_lr, (w//8, h//8), interpolation=cv2.INTER_NEAREST),
-            "stage_2": cv2.resize(depth_lr, (w//4, h//4), interpolation=cv2.INTER_NEAREST),
-            "stage_1": cv2.resize(depth_lr, (w//2, h//2), interpolation=cv2.INTER_NEAREST),
-            "stage_0": depth_lr
+            'stage_3': cv2.resize(depth_lr, (w//8, h//8), interpolation=cv2.INTER_NEAREST),
+            'stage_2': cv2.resize(depth_lr, (w//4, h//4), interpolation=cv2.INTER_NEAREST),
+            'stage_1': cv2.resize(depth_lr, (w//2, h//2), interpolation=cv2.INTER_NEAREST),
+            'stage_0': depth_lr
         }
         return depth_lr_ms
 
@@ -231,10 +231,10 @@ class MVSTrainDataset(Dataset):
 
         
         # data is numpy array
-        return {"imgs": imgs,                   # N*3*H0*W0
-                "proj_matrices": proj, # N*4*4
-                "depth": depth,                 # 1*H0 * W0
-                "depth_min": depth_min,         # scalar
-                "depth_max": depth_max,         # scalar
-                "mask": mask}                   # 1*H0 * W0
+        return {'imgs': imgs,                   # N*3*H0*W0
+                'proj_matrices': proj, # N*4*4
+                'depth': depth,                 # 1*H0 * W0
+                'depth_min': depth_min,         # scalar
+                'depth_max': depth_max,         # scalar
+                'mask': mask}                   # 1*H0 * W0
 

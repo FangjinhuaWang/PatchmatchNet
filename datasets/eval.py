@@ -1,7 +1,6 @@
 import os
-import numpy as np
 from torch.utils.data import Dataset
-from data_io import read_image, read_cam_file, read_pair_file
+from datasets.data_io import *
 
 
 class MVSEvalDataset(Dataset):

@@ -1,19 +1,15 @@
 import argparse
 import os
-import sys
 import time
-import cv2
-
 import torch.backends.cudnn as cudnn
 import torch.nn.parallel
+
 from plyfile import PlyData, PlyElement
 from torch.utils.data import DataLoader
-
 from datasets.eval import MVSEvalDataset
-from datasets.data_io import read_map, save_map, read_image, save_image, read_cam_file, read_pair_file
+from datasets.data_io import *
 from models.net import *
 from utils import *
-from collections import OrderedDict
 
 cudnn.benchmark = True
 
@@ -23,15 +19,14 @@ parser = argparse.ArgumentParser(description='Predict depth, filter, and fuse')
 parser.add_argument('--input_folder', help='input data path')
 parser.add_argument('--output_folder', help='output path')
 parser.add_argument('--checkpoint_path', help='load a specific checkpoint for parameters of model')
-parser.add_argument('--file_format', default='.bin', help='File format for depth maps; supports .pfm and .bin')
-parser.add_argument('--input_type', default='params', help='Input type of checkpoint; can be module or params')
-parser.add_argument('--eval_type', default='custom',
-                    help='Model evaluation type for scan identification; can be eth3d_test, eth3d_train, tanks_intermediate, tanks_intermediate, and custom')
+parser.add_argument('--file_format', default='.bin', help='File format for depth maps', choices=['.bin', '.pfm'])
+parser.add_argument('--input_type', default='params', help='Input type of checkpoint', choices=['params', 'module'])
+parser.add_argument('--eval_type', default='custom', help='Model evaluation type for scan identification',
+                    choices=['eth3d_test', 'eth3d_train', 'tanks_intermediate', 'tanks_advanced', 'custom'])
 parser.add_argument('--scan_list', default='', help='Optional scan list text file to identify input folders')
 
 # Dataset loading options
-parser.add_argument('--num_views', type=int, default=21,
-                    help='total views for each patch-match problem including reference')
+parser.add_argument('--num_views', type=int, default=21, help='total views for each patch-match problem including reference')
 parser.add_argument('--batch_size', type=int, default=1, help='evaluation batch size')
 parser.add_argument('--image_dims', nargs=2, type=int, default=[640, 480], help='image dimensions')
 
@@ -51,17 +46,14 @@ parser.add_argument('--evaluate_neighbors', nargs='+', type=int, default=[9, 9, 
 
 # Stereo fusion options
 parser.add_argument('--display', action='store_true', help='display depth images and masks')
-parser.add_argument('--geom_pixel_threshold', type=float, default=1,
-                    help='pixel threshold for geometric consistency filtering')
-parser.add_argument('--geom_depth_threshold', type=float, default=0.01,
-                    help='depth threshold for geometric consistency filtering')
+parser.add_argument('--geom_pixel_threshold', type=float, default=1.0, help='pixel threshold for geometric consistency filtering')
+parser.add_argument('--geom_depth_threshold', type=float, default=0.01, help='depth threshold for geometric consistency filtering')
 parser.add_argument('--geom_threshold', type=int, default=3, help='threshold for geometric consistency filtering')
-parser.add_argument('--photo_threshold', type=float, default=0.5,
-                    help='threshold for photometric consistency filtering')
+parser.add_argument('--photo_threshold', type=float, default=0.5, help='threshold for photometric consistency filtering')
 
 # parse arguments and check
 args = parser.parse_args()
-print("argv:", sys.argv[1:])
+print('argv:', sys.argv[1:])
 print_args(args)
 
 
@@ -70,57 +62,48 @@ def save_depth():
     dataset = MVSEvalDataset(args.input_folder, args.num_views, args.image_dims, args.eval_type, args.scan_list)
     image_loader = DataLoader(dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 
-    model = PatchMatchNet(patch_match_interval_scale=args.patch_match_interval_scale,
-                          propagation_range=args.patch_match_range, patch_match_iteration=args.patch_match_iteration,
-                          patch_match_num_sample=args.patch_match_num_sample,
-                          propagate_neighbors=args.propagate_neighbors, evaluate_neighbors=args.evaluate_neighbors)
-    # model = nn.DataParallel(model)
-    model.cuda()
+    if args.input_type == 'params':
+        print('Evaluating model with params from {}'.format(args.checkpoint_path))
+        model = PatchMatchNet(patch_match_interval_scale=args.patch_match_interval_scale,
+                              propagation_range=args.patch_match_range, patch_match_iteration=args.patch_match_iteration,
+                              patch_match_num_sample=args.patch_match_num_sample,
+                              propagate_neighbors=args.propagate_neighbors, evaluate_neighbors=args.evaluate_neighbors)
+        model = nn.DataParallel(model)
+        model.cuda()
 
-    # load checkpoint file specified by args.checkpoint_path
-    print("loading model {}".format(args.checkpoint_path))
-    state_dict = torch.load(args.checkpoint_path)['model']
-    # Replace dictionary entries when not using DataParallel model (useful for TorchScript modules)
-    new_dict = OrderedDict()
-    for key in state_dict.keys():
-        new_dict[key.replace("module.", "")] = state_dict[key]
-    missing, unexpected = model.load_state_dict(new_dict, strict=False)
-    print("Missing keys")
-    for key in missing:
-        print(key)
-    print("Unexpected keys")
-    for key in unexpected:
-        print(key)
-
-    model.eval()
-
-    tm = torch.jit.script(model)
-    print(tm.code)
-    tm.save(os.path.join(args.output_folder, "script-module.pt"))
-    # return
-    loaded = torch.jit.load(os.path.join(args.output_folder, "script-module.pt"))
-    print("Loaded module: {}".format(loaded.original_name))
+        state_dict = torch.load(args.checkpoint_path)['model']
+        missing, unexpected = model.load_state_dict(state_dict, strict=False)
+        print('Missing keys')
+        for key in missing:
+            print(key)
+        print('Unexpected keys')
+        for key in unexpected:
+            print(key)
+        model.eval()
+    else:
+        print('Using scripted module from {}'.format(args.checkpoint_path))
+        model = torch.jit.load(args.checkpoint_path)
 
     with torch.no_grad():
         for batch_idx, sample in enumerate(image_loader):
             start_time = time.time()
             sample_cuda = to_cuda(sample)
 
-            (depth, conf) = loaded.forward(sample_cuda["images"], sample_cuda["intrinsics"], sample_cuda["extrinsics"],
-                                           sample_cuda["depth_params"])
+            (depth, conf) = model.forward(sample_cuda['images'], sample_cuda['intrinsics'], sample_cuda['extrinsics'],
+                                          sample_cuda['depth_params'])
 
             depth = tensor2numpy(depth)
             conf = tensor2numpy(conf)
             del sample_cuda
             print('Iter {}/{}, time = {:.3f}'.format(batch_idx, len(image_loader), time.time() - start_time))
-            filenames = sample["filename"]
+            filenames = sample['filename']
 
             # save depth maps and confidence maps
             for filename, depth_est, photometric_confidence in zip(filenames, depth, conf):
                 depth_filename = os.path.join(args.output_folder, filename.format('depth_est', args.file_format))
                 confidence_filename = os.path.join(args.output_folder, filename.format('confidence', args.file_format))
-                os.makedirs(depth_filename.rsplit('/', 1)[0], exist_ok=True)
-                os.makedirs(confidence_filename.rsplit('/', 1)[0], exist_ok=True)
+                os.makedirs(os.path.dirname(depth_filename), exist_ok=True)
+                os.makedirs(os.path.dirname(confidence_filename), exist_ok=True)
                 # save depth maps
                 depth_est = np.squeeze(depth_est, 0)
                 save_map(depth_filename, depth_est)
@@ -196,7 +179,7 @@ def check_geometric_consistency(depth_ref, intrinsics_ref, extrinsics_ref, depth
 
 def filter_depth():
     # the pair file
-    pair_file = os.path.join(args.input_folder, "pair.txt")
+    pair_file = os.path.join(args.input_folder, 'pair.txt')
     # for the final point cloud
     vertices = []
     vertex_colors = []
@@ -255,13 +238,13 @@ def filter_depth():
         geo_mask = geo_mask_sum >= args.geom_threshold
         final_mask = np.logical_and(photo_mask, geo_mask)
 
-        os.makedirs(os.path.join(args.output_folder, "mask"), exist_ok=True)
-        save_image(os.path.join(args.output_folder, "mask/{:0>8}_photo.png".format(ref_view)), photo_mask)
-        save_image(os.path.join(args.output_folder, "mask/{:0>8}_geo.png".format(ref_view)), geo_mask)
-        save_image(os.path.join(args.output_folder, "mask/{:0>8}_final.png".format(ref_view)), final_mask)
+        os.makedirs(os.path.join(args.output_folder, 'mask'), exist_ok=True)
+        save_image(os.path.join(args.output_folder, 'mask/{:0>8}_photo.png'.format(ref_view)), photo_mask)
+        save_image(os.path.join(args.output_folder, 'mask/{:0>8}_geo.png'.format(ref_view)), geo_mask)
+        save_image(os.path.join(args.output_folder, 'mask/{:0>8}_final.png'.format(ref_view)), final_mask)
 
         print(
-            "processing {}, ref-view{:0>2}, geo_mask:{:3f} photo_mask:{:3f} final_mask: {:3f}".format(args.input_folder,
+            'processing {}, ref-view{:0>2}, geo_mask:{:3f} photo_mask:{:3f} final_mask: {:3f}'.format(args.input_folder,
                                                                                                       ref_view,
                                                                                                       geo_mask.mean(),
                                                                                                       photo_mask.mean(),
@@ -304,7 +287,7 @@ def filter_depth():
     el = PlyElement.describe(vertex_all, 'vertex')
     ply_filename = os.path.join(args.output_folder, 'fused.ply')
     PlyData([el]).write(ply_filename)
-    print("saving the final model to", ply_filename)
+    print('saving the final model to', ply_filename)
 
 
 if __name__ == '__main__':

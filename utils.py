@@ -5,10 +5,10 @@ import torchvision.utils as vutils
 
 # print arguments
 def print_args(args):
-    print("################################  args  ################################")
+    print('################################  args  ################################')
     for k, v in args.__dict__.items():
-        print("{0: <10}\t{1: <30}\t{2: <20}".format(k, str(v), str(type(v))))
-    print("########################################################################")
+        print('{0: <10}\t{1: <30}\t{2: <20}'.format(k, str(v), str(type(v))))
+    print('########################################################################')
 
 
 # torch.no_grad wrapper for functions
@@ -43,7 +43,7 @@ def tensor2float(args):
     elif isinstance(args, torch.Tensor):
         return args.data.item()
     else:
-        raise NotImplementedError("invalid input type {} for tensor2float".format(type(args)))
+        raise NotImplementedError('invalid input type {} for tensor2float'.format(type(args)))
 
 
 @make_recursive_func
@@ -53,7 +53,7 @@ def tensor2numpy(args):
     elif isinstance(args, torch.Tensor):
         return args.detach().cpu().numpy().copy()
     else:
-        raise NotImplementedError("invalid input type {} for tensor2numpy".format(type(args)))
+        raise NotImplementedError('invalid input type {} for tensor2numpy'.format(type(args)))
 
 
 @make_recursive_func
@@ -63,7 +63,7 @@ def to_cuda(args):
     elif isinstance(args, str):
         return args
     else:
-        raise NotImplementedError("invalid input type {} for to_cuda".format(type(args)))
+        raise NotImplementedError('invalid input type {} for to_cuda'.format(type(args)))
 
 
 def save_scalars(logger, mode, scalar_dict, global_step):
@@ -83,7 +83,7 @@ def save_images(logger, mode, images_dict, global_step):
 
     def preprocess(img_name, img):
         if not (len(img.shape) == 3 or len(img.shape) == 4):
-            raise NotImplementedError("invalid img shape {}:{} in save_images".format(img_name, img.shape))
+            raise NotImplementedError('invalid img shape {}:{} in save_images'.format(img_name, img.shape))
         if len(img.shape) == 3:
             img = img[:, np.newaxis, :, :]
         img = torch.from_numpy(img[:1])
@@ -109,12 +109,12 @@ class DictAverageMeter(object):
         if len(self.data) == 0:
             for k, v in new_input.items():
                 if not isinstance(v, float):
-                    raise NotImplementedError("invalid data {}: {}".format(k, type(v)))
+                    raise NotImplementedError('invalid data {}: {}'.format(k, type(v)))
                 self.data[k] = v
         else:
             for k, v in new_input.items():
                 if not isinstance(v, float):
-                    raise NotImplementedError("invalid data {}: {}".format(k, type(v)))
+                    raise NotImplementedError('invalid data {}: {}'.format(k, type(v)))
                 self.data[k] += v
 
     def mean(self):

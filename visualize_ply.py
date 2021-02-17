@@ -4,7 +4,7 @@ import numpy as np
 import os
 
 # from https://github.com/intel-isl/Open3D/blob/master/examples/Python/Advanced/load_save_viewpoint.py
-if __name__ == "__main__":
+if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--log_dir', type=str, required=True,
                         help='the scan to visualize')
@@ -33,15 +33,15 @@ if __name__ == "__main__":
     vis.add_geometry(pcd)
     
     if args.use_viewpoint:
-        # param = o3d.io.read_pinhole_camera_parameters(f"viewpoints/{args.dataset}/viewpoint.json")
-        param = o3d.io.read_pinhole_camera_parameters("viewpoints/dtu/viewpoint.json")
+        # param = o3d.io.read_pinhole_camera_parameters(f'viewpoints/{args.dataset}/viewpoint.json')
+        param = o3d.io.read_pinhole_camera_parameters('viewpoints/dtu/viewpoint.json')
         ctr.convert_from_pinhole_camera_parameters(param)
         vis.run()
     elif args.save_viewpoint:
         vis.run()
         param = ctr.convert_to_pinhole_camera_parameters()
-        # o3d.io.write_pinhole_camera_parameters(f"viewpoints/{args.dataset}/viewpoint.json", param)
-        o3d.io.write_pinhole_camera_parameters("viewpoints/dtu/viewpoint.json", param)
+        # o3d.io.write_pinhole_camera_parameters(f'viewpoints/{args.dataset}/viewpoint.json', param)
+        o3d.io.write_pinhole_camera_parameters('viewpoints/dtu/viewpoint.json', param)
     else:
         vis.run()
     

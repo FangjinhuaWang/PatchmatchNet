@@ -73,11 +73,9 @@ class Evaluation(nn.Module):
         no_input_weights = is_empty(view_weights)
         view_weights_new = []
 
-        assert len(src_features) == len(
-            src_projs), "PatchMatch Evaluation: Different number of images and projection matrices"
+        assert len(src_features) == len(src_projs), 'PatchMatch Evaluation: Different number of images and projection matrices'
         if not is_empty(view_weights):
-            assert len(src_features) == view_weights.size()[
-                1], "PatchMatch Evaluation: Different number of images and view weights"
+            assert len(src_features) == view_weights.size()[1], 'PatchMatch Evaluation: Different number of images and view weights'
 
         ref_feature = ref_feature.view(batch_size, self.group_size, num_channels // self.group_size, 1, height, width)
         weight_sum = torch.zeros((batch_size, 1, 1, height, width), dtype=torch.float32, device=device)
