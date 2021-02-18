@@ -1,1 +1,1 @@
-from models.net import PatchmatchNet, patchmatchnet_loss
+from models.net import PatchMatchNet, patch_match_net_loss
