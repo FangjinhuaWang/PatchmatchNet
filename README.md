@@ -89,7 +89,7 @@ The results look like:
 ```
 python colmap_input.py --folder COLMAP/dense/
 ```
-* In ``datasets/custom.py`` and ``eval_custom.py``, you can change parameters such as ``img_wh`` for your own settings.
+* In ``datasets/custom.py`` and ``eval_custom.py``, you can change parameters such as ``img_wh`` (need to be divisible by 8) for your own settings.
 * In ``eval.sh``, set `CUSTOM_TESTING` as the root directory of the dataset, set `--outdir` as the directory to store the reconstructed point clouds, uncomment the evaluation command. Test on GPU by running `sh eval.sh`.
 
 ## Training
