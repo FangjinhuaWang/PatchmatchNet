@@ -94,9 +94,9 @@ def save_depth():
 
     model.cuda()
     model.eval()
-    sm = torch.jit.script(model)
-    sm.save(os.path.join(args.output_folder, 'patchmatchnet-module.pt'))
-    return
+    # sm = torch.jit.script(model)
+    # sm.save(os.path.join(args.output_folder, 'patchmatchnet-module.pt'))
+    # return
 
     dataset = MVSEvalDataset(args.input_folder, args.num_views, args.image_max_dim, args.eval_type, args.scan_list)
     image_loader = DataLoader(dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
