@@ -82,8 +82,12 @@ class Evaluation(nn.Module):
         similarity_sum = torch.zeros((batch_size, self.group_size, num_depth, height, width), dtype=torch.float32,
                                      device=device)
         i = 0
+        # print('Evaluation sizes')
         for src_feature, src_proj in zip(src_features, src_projs):
             warped_feature = differentiable_warping(src_feature, src_proj, ref_proj, depth_sample)
+            # print(src_feature.size())
+            # print(depth_sample.size())
+            # print(warped_feature.size())
             warped_feature = warped_feature.view(batch_size, self.group_size, num_channels // self.group_size,
                                                  num_depth, height, width)
             similarity = (warped_feature * ref_feature).mean(2)

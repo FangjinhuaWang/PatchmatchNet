@@ -4,12 +4,12 @@ from datasets.data_io import *
 
 
 class MVSEvalDataset(Dataset):
-    def __init__(self, data_path: str, num_views: int = 10, img_dims=(736, 416), eval_type: str = 'custom', scan_list: str = ''):
+    def __init__(self, data_path: str, num_views: int = 10, max_dim=1024, eval_type: str = 'custom', scan_list: str = ''):
 
         self.metas = []
         self.stages = 4
         self.data_path = data_path
-        self.img_dims = img_dims
+        self.max_dim = max_dim
 
         self.num_views = num_views
 
@@ -52,27 +52,25 @@ class MVSEvalDataset(Dataset):
             img_filename = os.path.join(self.data_path, scan, f'images/{vid:08d}.jpg')
             proj_mat_filename = os.path.join(self.data_path, scan, f'cams/{vid:08d}_cam.txt')
 
-            image, original_h, original_w = read_image(img_filename, self.img_dims[1], self.img_dims[0])
-            images.append(image)
+            image, original_h, original_w = read_image(img_filename, self.max_dim)
+            images.append(image.transpose([2, 0, 1]))
 
             intrinsic, extrinsic, depth_params_ = read_cam_file(proj_mat_filename)
 
-            intrinsic[0] *= self.img_dims[0] / original_w
-            intrinsic[1] *= self.img_dims[1] / original_h
+            intrinsic[0] *= image.shape[1] / original_w
+            intrinsic[1] *= image.shape[0] / original_h
             intrinsics.append(intrinsic)
             extrinsics.append(extrinsic)
 
             if i == 0:  # reference view
                 depth_params = depth_params_
 
-        # images: N*3*H0*W0, N is number of images
-        images = np.stack(images).transpose([0, 3, 1, 2])
         intrinsics = np.stack(intrinsics)
         extrinsics = np.stack(extrinsics)
 
-        return {'images': images,  # N*3*H0*W0
-                'intrinsics': intrinsics,  # N*3*3
-                'extrinsics': extrinsics,  # N*4*4
-                'depth_params': depth_params,  # 2
+        return {'images': images,  # List[Tensor]: [N][3,H0,W0], N is number of images
+                'intrinsics': intrinsics,  # Tensor: [N,3,3]
+                'extrinsics': extrinsics,  # Tensor: [N,4,4]
+                'depth_params': depth_params,  # Tensor: [2]
                 'filename': os.path.join(scan, '{}', '{:0>8}'.format(view_ids[0]) + '{}')
                 }

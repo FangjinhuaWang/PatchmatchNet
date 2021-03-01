@@ -102,6 +102,7 @@ class PatchMatchNet(nn.Module):
         # number of groups for group-wise correlation
         num_groups = [4, 8, 8]
 
+        # Need to unroll the initialization since TorchScript cannot handle lists or dictionaries of modules
         self.patchmatch_1 = PatchMatch(propagation_range[0], patch_match_iteration[0], patch_match_num_sample[0],
                                        patch_match_interval_scale[0], num_features[0], num_groups[0],
                                        propagate_neighbors[0], evaluate_neighbors[0], 1)
@@ -114,18 +115,21 @@ class PatchMatchNet(nn.Module):
 
         self.upsample_net = Refinement()
 
-    def forward(self, images: Tensor, intrinsics: Tensor, extrinsics: Tensor, depth_params: Tensor):
+    def forward(self, images: List[Tensor], intrinsics: Tensor, extrinsics: Tensor, depth_params: Tensor):
+        images, intrinsics, height, width = adjust_image_dims(images, intrinsics)
+        num_images = len(images)
+
         depth_min = depth_params[0, 0].item()
         depth_max = depth_params[0, 1].item()
-        image_ref = images[:, 0]
+        image_ref = images[0]
 
-        assert images.size()[1] == intrinsics.size()[1], 'Different number of images and intrinsic matrices'
-        assert images.size()[1] == extrinsics.size()[1], 'Different number of images and extrinsic matrices'
+        assert num_images == intrinsics.size()[1], 'Different number of images and intrinsic matrices'
+        assert num_images == extrinsics.size()[1], 'Different number of images and extrinsic matrices'
 
         # step 1. Multi-scale feature extraction
         features: List[List[Tensor]] = []
-        for i in range(images.size()[1]):
-            output_feature = self.feature(images[:, i])
+        for i in range(num_images):
+            output_feature = self.feature(images[i])
             features.append(output_feature)
         ref_feature, src_features = features[0], features[1:]
 
@@ -145,16 +149,16 @@ class PatchMatchNet(nn.Module):
             ref_proj, src_proj = proj_stage[0], proj_stage[1:]
             scale *= 2.0
 
+            # Need to select correct module with conditional since TorchScript does not support `getattr` with variable name
             if stage == 3:
-                depth, score, view_weights = self.patchmatch_3(ref_feature[stage], src_features_stage, ref_proj, src_proj,
-                                                               depth_min, depth_max, depth, view_weights)
+                depth, score, view_weights = self.patchmatch_3(ref_feature[stage], src_features_stage, ref_proj,
+                                                               src_proj, depth_min, depth_max, depth, view_weights)
             elif stage == 2:
                 depth, score, view_weights = self.patchmatch_2(ref_feature[stage], src_features_stage, ref_proj,
-                                                               src_proj,
-                                                               depth_min, depth_max, depth, view_weights)
+                                                               src_proj, depth_min, depth_max, depth, view_weights)
             elif stage == 1:
-                depth, score, view_weights = self.patchmatch_1(ref_feature[stage], src_features_stage, ref_proj, src_proj,
-                                                               depth_min, depth_max, depth, view_weights)
+                depth, score, view_weights = self.patchmatch_1(ref_feature[stage], src_features_stage, ref_proj,
+                                                               src_proj, depth_min, depth_max, depth, view_weights)
 
             depth = depth.detach()
             if stage > 1:
@@ -164,6 +168,7 @@ class PatchMatchNet(nn.Module):
 
         # step 3. Refinement  
         depth = self.upsample_net(image_ref, depth, depth_min, depth_max)
+        depth = nnfun.interpolate(depth, size=[height, width], mode='bilinear', align_corners=False).squeeze(1)
 
         del ref_feature
         del src_features
@@ -175,10 +180,23 @@ class PatchMatchNet(nn.Module):
         score_sum4 = 4 * nnfun.avg_pool3d(nnfun.pad(score.unsqueeze(1), pad=(0, 0, 0, 0, 1, 2)), (4, 1, 1), stride=1,
                                           padding=0).squeeze(1)
         confidence = torch.gather(score_sum4, 1, depth_index)
-        confidence = nnfun.interpolate(confidence, scale_factor=2.0, mode='bilinear', align_corners=False)
-        confidence = confidence.squeeze(1)
+        confidence = nnfun.interpolate(confidence, size=[height, width], mode='bilinear', align_corners=False).squeeze(1)
 
         return depth, confidence
+
+
+def adjust_image_dims(images: List[Tensor], intrinsics: Tensor):
+    # stretch image slightly to ensure width and height are multiples of 8
+    _, _, ref_height, ref_width = images[0].size()
+    for i in range(len(images)):
+        _, _, height, width = images[i].size()
+        new_height = int(round(height / 8) * 8)
+        new_width = int(round(width / 8) * 8)
+        intrinsics[:, i, 0] *= new_width / width
+        intrinsics[:, i, 1] *= new_height / height
+        images[i] = nnfun.interpolate(images[i], size=[new_height, new_width], mode='bilinear', align_corners=False)
+
+    return images, intrinsics, ref_height, ref_width
 
 
 def patch_match_net_loss(depth_patch_match, refined_depth, depth_gt, mask):

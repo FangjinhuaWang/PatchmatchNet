@@ -6,6 +6,7 @@ import torch.nn.parallel
 
 from plyfile import PlyData, PlyElement
 from torch.utils.data import DataLoader
+from collections import OrderedDict
 from datasets.eval import MVSEvalDataset
 from datasets.data_io import *
 from models.net import *
@@ -21,14 +22,16 @@ parser.add_argument('--output_folder', help='output path')
 parser.add_argument('--checkpoint_path', help='load a specific checkpoint for parameters of model')
 parser.add_argument('--file_format', default='.bin', help='File format for depth maps', choices=['.bin', '.pfm'])
 parser.add_argument('--input_type', default='params', help='Input type of checkpoint', choices=['params', 'module'])
+parser.add_argument('--output_type', default='both', help='Type of outputs to produce', choices=['depth', 'fusion', 'both'])
 parser.add_argument('--eval_type', default='custom', help='Model evaluation type for scan identification',
                     choices=['eth3d_test', 'eth3d_train', 'tanks_intermediate', 'tanks_advanced', 'custom'])
 parser.add_argument('--scan_list', default='', help='Optional scan list text file to identify input folders')
+parser.add_argument('--data_parallel', type=bool, default=False, help='Flag to use or skip data parallel mode')
 
 # Dataset loading options
 parser.add_argument('--num_views', type=int, default=21, help='total views for each patch-match problem including reference')
 parser.add_argument('--batch_size', type=int, default=1, help='evaluation batch size')
-parser.add_argument('--image_dims', nargs=2, type=int, default=[640, 480], help='image dimensions')
+parser.add_argument('--image_max_dim', type=int, default=1024, help='max image dimension')
 
 # PatchMatchNet module options (only used when not loading from file)
 parser.add_argument('--patch_match_iteration', nargs='+', type=int, default=[1, 2, 2],
@@ -48,7 +51,7 @@ parser.add_argument('--evaluate_neighbors', nargs='+', type=int, default=[9, 9, 
 parser.add_argument('--display', action='store_true', help='display depth images and masks')
 parser.add_argument('--geom_pixel_threshold', type=float, default=1.0, help='pixel threshold for geometric consistency filtering')
 parser.add_argument('--geom_depth_threshold', type=float, default=0.01, help='depth threshold for geometric consistency filtering')
-parser.add_argument('--geom_threshold', type=int, default=3, help='threshold for geometric consistency filtering')
+parser.add_argument('--geom_threshold', type=int, default=5, help='threshold for geometric consistency filtering')
 parser.add_argument('--photo_threshold', type=float, default=0.5, help='threshold for photometric consistency filtering')
 
 # parse arguments and check
@@ -59,7 +62,7 @@ print_args(args)
 
 # run MVS model to save depth maps
 def save_depth():
-    dataset = MVSEvalDataset(args.input_folder, args.num_views, args.image_dims, args.eval_type, args.scan_list)
+    dataset = MVSEvalDataset(args.input_folder, args.num_views, args.image_max_dim, args.eval_type, args.scan_list)
     image_loader = DataLoader(dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 
     if args.input_type == 'params':
@@ -68,22 +71,35 @@ def save_depth():
                               propagation_range=args.patch_match_range, patch_match_iteration=args.patch_match_iteration,
                               patch_match_num_sample=args.patch_match_num_sample,
                               propagate_neighbors=args.propagate_neighbors, evaluate_neighbors=args.evaluate_neighbors)
-        model = nn.DataParallel(model)
-        model.cuda()
 
         state_dict = torch.load(args.checkpoint_path)['model']
-        missing, unexpected = model.load_state_dict(state_dict, strict=False)
+
+        if args.data_parallel:
+            print('Data parallel mode')
+            model = nn.DataParallel(model)
+            missing, unexpected = model.load_state_dict(state_dict, strict=False)
+        else:
+            print('Non-parallel mode')
+            # For non data parallel mode we need to convert the state dictionary and remove the 'module.` prefix from the keys
+            new_dict = OrderedDict()
+            for key in state_dict:
+                new_dict[key[7:]] = state_dict[key]
+            missing, unexpected = model.load_state_dict(new_dict, strict=False)
         print('Missing keys')
         for key in missing:
             print(key)
         print('Unexpected keys')
         for key in unexpected:
             print(key)
-        model.eval()
     else:
         print('Using scripted module from {}'.format(args.checkpoint_path))
         model = torch.jit.load(args.checkpoint_path)
 
+    model.cuda()
+    model.eval()
+    # sm = torch.jit.script(model)
+    # sm.save(os.path.join(args.output_folder, 'patchmatchnet-module.pt'))
+    # return
     with torch.no_grad():
         for batch_idx, sample in enumerate(image_loader):
             start_time = time.time()
@@ -95,7 +111,7 @@ def save_depth():
             depth = tensor2numpy(depth)
             conf = tensor2numpy(conf)
             del sample_cuda
-            print('Iter {}/{}, time = {:.3f}'.format(batch_idx, len(image_loader), time.time() - start_time))
+            print('Iter {}/{}, time = {:.3f}'.format(batch_idx + 1, len(image_loader), time.time() - start_time))
             filenames = sample['filename']
 
             # save depth maps and confidence maps
@@ -105,7 +121,6 @@ def save_depth():
                 os.makedirs(os.path.dirname(depth_filename), exist_ok=True)
                 os.makedirs(os.path.dirname(confidence_filename), exist_ok=True)
                 # save depth maps
-                depth_est = np.squeeze(depth_est, 0)
                 save_map(depth_filename, depth_est)
                 # save confidence maps
                 save_map(confidence_filename, photometric_confidence)
@@ -191,12 +206,11 @@ def filter_depth():
 
         # load the reference image
         ref_img, original_h, original_w = read_image(
-            os.path.join(args.input_folder, 'images/{:0>8}.jpg'.format(ref_view)),
-            args.image_dims[1], args.image_dims[0])
+            os.path.join(args.input_folder, 'images/{:0>8}.jpg'.format(ref_view)), args.image_max_dim)
         ref_intrinsics, ref_extrinsics = read_cam_file(
             os.path.join(args.input_folder, 'cams/{:0>8}_cam.txt'.format(ref_view)))[0:2]
-        ref_intrinsics[0] *= args.image_dims[0] / original_w
-        ref_intrinsics[1] *= args.image_dims[1] / original_h
+        ref_intrinsics[0] *= ref_img.shape[1] / original_w
+        ref_intrinsics[1] *= ref_img.shape[0] / original_h
 
         # load the estimated depth of the reference view
         ref_depth_est = \
@@ -215,13 +229,12 @@ def filter_depth():
         geo_mask_sum = 0
         for src_view in src_views:
             # camera parameters of the source view
-            _, original_h, original_w = read_image(
-                os.path.join(args.input_folder, 'images/{:0>8}.jpg'.format(src_view)),
-                args.image_dims[1], args.image_dims[0])
+            src_image, original_h, original_w = read_image(
+                os.path.join(args.input_folder, 'images/{:0>8}.jpg'.format(src_view)), args.image_max_dim)
             src_intrinsics, src_extrinsics = read_cam_file(
                 os.path.join(args.input_folder, 'cams/{:0>8}_cam.txt'.format(src_view)))[0:2]
-            src_intrinsics[0] *= args.image_dims[0] / original_w
-            src_intrinsics[1] *= args.image_dims[1] / original_h
+            src_intrinsics[0] *= src_image.shape[1] / original_w
+            src_intrinsics[1] *= src_image.shape[0] / original_h
 
             # the estimated depth of the source view
             src_depth_est = \
@@ -244,7 +257,7 @@ def filter_depth():
         save_image(os.path.join(args.output_folder, 'mask/{:0>8}_final.png'.format(ref_view)), final_mask)
 
         print(
-            'processing {}, ref-view{:0>2}, geo_mask:{:3f} photo_mask:{:3f} final_mask: {:3f}'.format(args.input_folder,
+            'processing {}, ref-view{:0>3}, geo_mask:{:3f} photo_mask:{:3f} final_mask: {:3f}'.format(args.input_folder,
                                                                                                       ref_view,
                                                                                                       geo_mask.mean(),
                                                                                                       photo_mask.mean(),
@@ -292,7 +305,9 @@ def filter_depth():
 
 if __name__ == '__main__':
     # step1. save all the depth maps and the masks in outputs directory
-    save_depth()
+    if args.output_type == 'depth' or args.output_type == 'both':
+        save_depth()
 
     # step2. filter saved depth maps and reconstruct point cloud
-    # filter_depth()
+    if args.output_type == 'fusion' or args.output_type == 'both':
+        filter_depth()

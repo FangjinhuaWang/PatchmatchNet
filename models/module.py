@@ -51,13 +51,13 @@ class ConvBn(nn.Module):
 
 
 def differentiable_warping(src_fea: Tensor, src_proj: Tensor, ref_proj: Tensor, depth_samples: Tensor):
-    # src_fea: [B, C, H, W]
+    # src_fea: [B, C, H_in, W_in]
     # src_proj: [B, 4, 4]
     # ref_proj: [B, 4, 4]
-    # depth_samples: [B, num_depth, H, W]
-    # out: [B, C, num_depth, H, W]
-    batch, channels, height, width = src_fea.shape
-    num_depth = depth_samples.shape[1]
+    # depth_samples: [B, num_depth, H_out, W_out]
+    # out: [B, C, num_depth, H_out, W_out]
+    batch, num_depth, height, width = depth_samples.shape
+    channels = src_fea.shape[1]
 
     with torch.no_grad():
         proj = torch.matmul(src_proj, torch.inverse(ref_proj))

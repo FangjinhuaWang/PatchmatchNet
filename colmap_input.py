@@ -282,7 +282,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--input_folder', type=str, help='Project dir.')
     parser.add_argument('--output_folder', type=str, default='', help='Project dir.')
-    parser.add_argument('--num_rel_images', type=int, default=20, help='Related images')
+    parser.add_argument('--num_rel_images', type=int, default=-1, help='Related images')
     parser.add_argument('--theta0', type=float, default=5)
     parser.add_argument('--sigma1', type=float, default=1)
     parser.add_argument('--sigma2', type=float, default=10)
@@ -392,20 +392,18 @@ if __name__ == '__main__':
         score[idx1, idx2] = s
         score[idx2, idx1] = s
     view_sel = []
+
+    if args.num_rel_images < 0:
+        args.num_rel_images = num_images
+
     for im_idx in range(num_images):
         sorted_score = np.argsort(score[im_idx])[::-1]
         view_sel.append([(k, score[im_idx, k]) for k in sorted_score[:args.num_rel_images]])
     print('view_sel[0]\n', view_sel[0], end='\n\n')
 
     # write
-    try:
-        os.makedirs(cam_dir)
-    except os.error:
-        print(cam_dir + ' already exist.')
-    try:
-        os.makedirs(renamed_dir)
-    except os.error:
-        print(renamed_dir + ' already exist.')
+    os.makedirs(cam_dir, exist_ok=True)
+    os.makedirs(renamed_dir, exist_ok=True)
     for im_idx in range(num_images):
         with open(os.path.join(cam_dir, '%08d_cam.txt' % im_idx), 'w') as f:
             f.write('extrinsic\n')

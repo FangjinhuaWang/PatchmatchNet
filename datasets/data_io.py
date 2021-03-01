@@ -7,12 +7,15 @@ from PIL import Image
 
 
 # Read image and rescale to specified size
-def read_image(filename: str, h: int, w: int):
+def read_image(filename: str, max_dim: int):
     img = Image.open(filename)
 
     # scale 0~255 to 0~1
     np_img = np.array(img, dtype=np.float32) / 255.
     original_h, original_w, _ = np_img.shape
+    scale = max_dim / max(original_h, original_w)
+    w = int(scale * original_w)
+    h = int(scale * original_h)
     np_img = cv2.resize(np_img, (w, h), interpolation=cv2.INTER_LINEAR)
 
     return np_img, original_h, original_w
