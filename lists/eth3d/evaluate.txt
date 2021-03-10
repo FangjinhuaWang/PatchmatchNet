@@ -1,0 +1,12 @@
+botanical_garden
+boulders
+bridge
+door
+exhibition_hall
+lecture_room
+living_room
+lounge
+observatory
+old_computer
+statue
+terrace_2

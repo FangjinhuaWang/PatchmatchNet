@@ -1,0 +1,8 @@
+intermediate/Family
+intermediate/Francis
+intermediate/Horse
+intermediate/Lighthouse
+intermediate/M60
+intermediate/Panther
+intermediate/Playground
+intermediate/Train
