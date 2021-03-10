@@ -6,19 +6,25 @@ import struct
 from PIL import Image
 
 
+# Scale image to specific max size
+def scale_to_max_dim(image, max_dim: int):
+    original_height = image.shape[0]
+    original_width = image.shape[1]
+    if max_dim > 0:
+        scale = max_dim / max(original_height, original_width)
+        width = int(scale * original_width)
+        height = int(scale * original_height)
+        image = cv2.resize(image, (width, height), interpolation=cv2.INTER_LINEAR)
+
+    return image, original_height, original_width
+
+
 # Read image and rescale to specified size
-def read_image(filename: str, max_dim: int):
-    img = Image.open(filename)
-
+def read_image(filename: str, max_dim: int = -1):
+    image = Image.open(filename)
     # scale 0~255 to 0~1
-    np_img = np.array(img, dtype=np.float32) / 255.
-    original_h, original_w, _ = np_img.shape
-    scale = max_dim / max(original_h, original_w)
-    w = int(scale * original_w)
-    h = int(scale * original_h)
-    np_img = cv2.resize(np_img, (w, h), interpolation=cv2.INTER_LINEAR)
-
-    return np_img, original_h, original_w
+    np_image = np.array(image, dtype=np.float32) / 255.0
+    return scale_to_max_dim(np_image, max_dim)
 
 
 # Save images including binary mask (bool), float (0<= val <= 1), or int (as-is)
@@ -64,13 +70,14 @@ def read_pair_file(filename):
 
 
 # Read binary maps (depth or confidence) from pfm or bin format
-def read_map(path: str):
+def read_map(path: str, max_dim: int = -1):
     if path.endswith('.bin'):
-        return read_bin(path)
+        in_map = read_bin(path)
     elif path.endswith('.pfm'):
-        return read_pfm(path)
+        in_map = read_pfm(path)
     else:
         raise Exception('Invalid input format; only pfm and bin are supported')
+    return scale_to_max_dim(in_map, max_dim)[0]
 
 
 # Save binary maps (depth or confidence) in pfm or bin format
@@ -100,7 +107,7 @@ def read_bin(path: str):
         data = np.fromfile(fid, np.float32)
     data = data.reshape((width, height, channels), order='F')
     data = np.transpose(data, (1, 0, 2))
-    return data, 1
+    return data
 
 
 # Save map in bin file (colmap)
@@ -166,7 +173,7 @@ def read_pfm(filename: str):
     data = np.reshape(data, shape)
     data = np.flipud(data)
     file.close()
-    return data, scale
+    return data
 
 
 # Save map in pfm file

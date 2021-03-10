@@ -6,31 +6,37 @@ import random
 
 
 class MVSTrainDataset(Dataset):
-    def __init__(self, datapath, listfile, mode, nviews, robust_train = False):
+    def __init__(self, data_path: str, num_views: int = 10, max_dim: int = 1024, scan_list: str = '', robust_train: bool = False):
         super(MVSTrainDataset, self).__init__()
 
-        self.stages = 4
-        self.datapath = datapath
-        self.listfile = listfile
-        self.mode = mode
-        self.nviews = nviews
-        
+        self.data_path = data_path
+        self.num_views = num_views
+        self.max_dim = max_dim
         self.robust_train = robust_train
-        
 
-        assert self.mode in ['train', 'val', 'test']
-        self.metas = self.build_list()
+        if os.path.isfile(scan_list):
+            with open(scan_list) as f:
+                scans = [line.rstrip() for line in f.readlines()]
+        else:
+            scans = ['']
+
+        self.metas = []
+        # May need to deal with light_idx here!
+        for scan in scans:
+            pair_data = read_pair_file(os.path.join(self.data_path, scan, 'pair.txt'))
+            self.metas += [(scan, ref, src) for ref, src in pair_data]
+
 
     def build_list(self):
         metas = []
-        with open(self.listfile) as f:
+        with open(self.scan_list) as f:
             scans = f.readlines()
             scans = [line.rstrip() for line in scans]
 
         for scan in scans:
             pair_file = 'Cameras_1/pair.txt'
             
-            with open(os.path.join(self.datapath, pair_file)) as f:
+            with open(os.path.join(self.data_path, pair_file)) as f:
                 self.num_viewpoint = int(f.readline())
                 # viewpoints (49)
                 for view_idx in range(self.num_viewpoint):
@@ -39,7 +45,7 @@ class MVSTrainDataset(Dataset):
                     # light conditions 0-6
                     for light_idx in range(7):
                         metas.append((scan, light_idx, ref_view, src_views))
-        print('dataset', self.mode, 'metas:', len(metas))
+        print('dataset', 'metas:', len(metas))
         return metas
 
     def __len__(self):
@@ -73,7 +79,7 @@ class MVSTrainDataset(Dataset):
         return np_img_ms
         
     def read_depth(self, filename):
-        return np.array(read_pfm(filename)[0], dtype=np.float32)
+        return np.array(read_pfm(filename), dtype=np.float32)
 
     def prepare_img(self, hr_img):
         # original w,h: 1600, 1200; downsample -> 800, 600 ; crop -> 640, 512
@@ -106,13 +112,12 @@ class MVSTrainDataset(Dataset):
 
     def read_depth_hr(self, filename):
         
-        depth_hr = np.array(read_pfm(filename)[0], dtype=np.float32)
+        depth_hr = np.array(read_pfm(filename), dtype=np.float32)
         depth_hr = np.squeeze(depth_hr,2)
         depth_lr = self.prepare_img(depth_hr)
 
         h, w = depth_lr.shape
         depth_lr_ms = {
-            
             'stage_3': cv2.resize(depth_lr, (w//8, h//8), interpolation=cv2.INTER_NEAREST),
             'stage_2': cv2.resize(depth_lr, (w//4, h//4), interpolation=cv2.INTER_NEAREST),
             'stage_1': cv2.resize(depth_lr, (w//2, h//2), interpolation=cv2.INTER_NEAREST),
@@ -128,11 +133,10 @@ class MVSTrainDataset(Dataset):
         # robust training strategy
         if self.robust_train:
             num_src_views = len(src_views)
-            index = random.sample(range(num_src_views), self.nviews - 1)
+            index = random.sample(range(num_src_views), self.num_views - 1)
             view_ids = [ref_view] + [src_views[i] for i in index]
-
         else:
-            view_ids = [ref_view] + src_views[:self.nviews - 1]
+            view_ids = [ref_view] + src_views[:self.num_views - 1]
 
         imgs_0 = []
         imgs_1 = []
@@ -152,12 +156,12 @@ class MVSTrainDataset(Dataset):
 
         for i, vid in enumerate(view_ids):
             # NOTE that the id in image file names is from 1 to 49 (not 0~48)
-            img_filename = os.path.join(self.datapath,
+            img_filename = os.path.join(self.data_path,
                                         'Rectified/{}_train/rect_{:0>3}_{}_r5000.png'.format(scan, vid + 1, light_idx))
             
-            mask_filename_hr = os.path.join(self.datapath, 'Depths_raw/{}/depth_visual_{:0>4}.png'.format(scan, vid))
-            depth_filename_hr = os.path.join(self.datapath, 'Depths_raw/{}/depth_map_{:0>4}.pfm'.format(scan, vid))
-            proj_mat_filename = os.path.join(self.datapath, 'Cameras_1/train/{:0>8}_cam.txt').format(vid)
+            mask_filename_hr = os.path.join(self.data_path, 'Depths_raw/{}/depth_visual_{:0>4}.png'.format(scan, vid))
+            depth_filename_hr = os.path.join(self.data_path, 'Depths_raw/{}/depth_map_{:0>4}.pfm'.format(scan, vid))
+            proj_mat_filename = os.path.join(self.data_path, 'Cameras_1/train/{:0>8}_cam.txt').format(vid)
 
             imgs = self.read_img(img_filename)
             imgs_0.append(imgs['stage_0'])

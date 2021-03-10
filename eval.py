@@ -23,8 +23,6 @@ parser.add_argument('--checkpoint_path', help='load a specific checkpoint for pa
 parser.add_argument('--file_format', default='.bin', help='File format for depth maps', choices=['.bin', '.pfm'])
 parser.add_argument('--input_type', default='params', help='Input type of checkpoint', choices=['params', 'module'])
 parser.add_argument('--output_type', default='both', help='Type of outputs to produce', choices=['depth', 'fusion', 'both'])
-parser.add_argument('--eval_type', default='custom', help='Model evaluation type for scan identification',
-                    choices=['eth3d_test', 'eth3d_train', 'tanks_intermediate', 'tanks_advanced', 'custom'])
 parser.add_argument('--scan_list', default='', help='Optional scan list text file to identify input folders')
 parser.add_argument('--data_parallel', type=bool, default=False, help='Flag to use or skip data parallel mode')
 
@@ -98,7 +96,7 @@ def save_depth():
     # sm.save(os.path.join(args.output_folder, 'patchmatchnet-module.pt'))
     # return
 
-    dataset = MVSEvalDataset(args.input_folder, args.num_views, args.image_max_dim, args.eval_type, args.scan_list)
+    dataset = MVSEvalDataset(args.input_folder, args.num_views, args.image_max_dim, args.scan_list)
     image_loader = DataLoader(dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 
     with torch.no_grad():
@@ -215,11 +213,11 @@ def filter_depth():
 
         # load the estimated depth of the reference view
         ref_depth_est = \
-            read_map(os.path.join(args.output_folder, 'depth_est/{:0>8}{}'.format(ref_view, args.file_format)))[0]
+            read_map(os.path.join(args.output_folder, 'depth_est/{:0>8}{}'.format(ref_view, args.file_format)))
         ref_depth_est = np.squeeze(ref_depth_est, 2)
         # load the photometric mask of the reference view
         confidence = \
-            read_map(os.path.join(args.output_folder, 'confidence/{:0>8}{}'.format(ref_view, args.file_format)))[0]
+            read_map(os.path.join(args.output_folder, 'confidence/{:0>8}{}'.format(ref_view, args.file_format)))
 
         photo_mask = confidence > args.photo_threshold
         photo_mask = np.squeeze(photo_mask, 2)
@@ -239,7 +237,7 @@ def filter_depth():
 
             # the estimated depth of the source view
             src_depth_est = \
-                read_map(os.path.join(args.output_folder, 'depth_est/{:0>8}{}'.format(src_view, args.file_format)))[0]
+                read_map(os.path.join(args.output_folder, 'depth_est/{:0>8}{}'.format(src_view, args.file_format)))
 
             geo_mask, depth_reprojected, x2d_src, y2d_src = \
                 check_geometric_consistency(ref_depth_est, ref_intrinsics, ref_extrinsics, src_depth_est,
