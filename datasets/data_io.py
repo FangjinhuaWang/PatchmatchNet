@@ -4,11 +4,11 @@ import re
 import sys
 import struct
 from PIL import Image
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 
 # Scale image to specific max size
-def scale_to_max_dim(image: np.ndarray, max_dim: int) -> Tuple[np.ndarray[np.float32], int, int]:
+def scale_to_max_dim(image: np.ndarray, max_dim: int) -> Tuple[np.ndarray, int, int]:
     original_height = image.shape[0]
     original_width = image.shape[1]
     if max_dim > 0:
@@ -21,7 +21,7 @@ def scale_to_max_dim(image: np.ndarray, max_dim: int) -> Tuple[np.ndarray[np.flo
 
 
 # Read image and rescale to specified size
-def read_image(filename: str, max_dim: int = -1) -> Tuple[np.ndarray[np.float32], int, int]:
+def read_image(filename: str, max_dim: int = -1) -> Tuple[np.ndarray, int, int]:
     image = Image.open(filename)
     # scale 0~255 to 0~1
     np_image = np.array(image, dtype=np.float32) / 255.0
@@ -40,8 +40,18 @@ def save_image(filename: str, image: np.ndarray):
     Image.fromarray(image).save(filename)
 
 
+def read_image_dictionary(filename: str) -> Dict[int, str]:
+    image_dict: Dict[int, str] = {}
+    with open(filename) as f:
+        num_entries = int(f.readline().strip())
+        for i in range(num_entries):
+            parts = f.readline().strip().split(' ')
+            image_dict[int(parts[0].strip())] = parts[1].strip()
+    return image_dict
+
+
 # Read camera intrinsics, extrinsics, and depth values (min, max)
-def read_cam_file(filename: str) -> Tuple[np.ndarray[np.float32], np.ndarray[np.float32], np.ndarray[np.float32]]:
+def read_cam_file(filename: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     with open(filename) as f:
         lines = [line.rstrip() for line in f.readlines()]
     # extrinsics: line [1,5), 4x4 matrix
@@ -71,7 +81,7 @@ def read_pair_file(filename: str) -> List[Tuple[int, List[int]]]:
 
 
 # Read binary maps (depth or confidence) from pfm or bin format
-def read_map(path: str, max_dim: int = -1) -> np.ndarray[np.float32]:
+def read_map(path: str, max_dim: int = -1) -> np.ndarray:
     if path.endswith('.bin'):
         in_map = read_bin(path)
     elif path.endswith('.pfm'):
@@ -82,7 +92,7 @@ def read_map(path: str, max_dim: int = -1) -> np.ndarray[np.float32]:
 
 
 # Save binary maps (depth or confidence) in pfm or bin format
-def save_map(path: str, data: np.ndarray[np.float32]):
+def save_map(path: str, data: np.ndarray):
     if path.endswith('.bin'):
         save_bin(path, data)
     elif path.endswith('.pfm'):
@@ -92,7 +102,7 @@ def save_map(path: str, data: np.ndarray[np.float32]):
 
 
 # Read map from bin file (colmap)
-def read_bin(path: str) -> np.ndarray[np.float32]:
+def read_bin(path: str) -> np.ndarray:
     with open(path, 'rb') as fid:
         width, height, channels = np.genfromtxt(fid, delimiter='&', max_rows=1,
                                                 usecols=(0, 1, 2), dtype=int)
@@ -112,7 +122,7 @@ def read_bin(path: str) -> np.ndarray[np.float32]:
 
 
 # Save map in bin file (colmap)
-def save_bin(path: str, data: np.ndarray[np.float32]):
+def save_bin(path: str, data: np.ndarray):
     if data.dtype != np.float32:
         raise Exception('Image data type must be float32.')
 
@@ -143,7 +153,7 @@ def save_bin(path: str, data: np.ndarray[np.float32]):
 
 
 # Read map from pfm file
-def read_pfm(filename: str) -> np.ndarray[np.float32]:
+def read_pfm(filename: str) -> np.ndarray:
     # rb: binary file and read only
     file = open(filename, 'rb')
 
@@ -176,7 +186,7 @@ def read_pfm(filename: str) -> np.ndarray[np.float32]:
 
 
 # Save map in pfm file
-def save_pfm(filename: str, data: np.ndarray[np.float32]):
+def save_pfm(filename: str, data: np.ndarray):
     file = open(filename, 'wb')
 
     data = np.flipud(data)

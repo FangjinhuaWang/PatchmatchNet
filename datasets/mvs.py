@@ -1,7 +1,8 @@
 import os
 import random
-from torch.utils.data import Dataset
 from datasets.data_io import *
+from torch.utils.data import Dataset
+from typing import Dict
 
 
 class MVSDataset(Dataset):
@@ -35,14 +36,12 @@ class MVSDataset(Dataset):
             for prefix in prefixes:
                 self.metas += [(scan, prefix, ref, src) for ref, src in pair_data]
 
-        self.has_index = False
-        self.image_index: List[str] = []
-        if index_path is not None:
+        if index_path is None:
+            self.has_index = False
+            self.image_index: Dict[int, str] = {}
+        else:
             self.has_index = True
-            with open(os.path.join(self.data_path, index_path)) as f:
-                num_entries = int(f.readline().strip())
-                for i in range(num_entries):
-                    self.image_index.append(f.readline().strip().split(' ')[1])
+            self.image_index = read_image_dictionary(os.path.join(self.data_path, index_path))
 
     def __len__(self):
         return len(self.metas)
