@@ -161,10 +161,8 @@ def read_pfm(filename: str) -> np.ndarray[np.float32]:
     else:
         raise Exception('Malformed PFM header.')
 
-    scale = float(file.readline().rstrip())
-    if scale < 0:  # little-endian
+    if float(file.readline().rstrip()) < 0:  # little-endian
         endian = '<'
-        scale = -scale
     else:
         endian = '>'  # big-endian
 

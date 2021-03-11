@@ -18,12 +18,12 @@ Camera = collections.namedtuple(
 BaseImage = collections.namedtuple(
     'Image', ['id', 'qvec', 'tvec', 'camera_id', 'name', 'xys', 'point3D_ids'])
 Point3D = collections.namedtuple(
-    'Point3D', ['id', 'xyz', 'rgb', 'error', 'image_ids', 'point2D_idxs'])
+    'Point3D', ['id', 'xyz', 'rgb', 'error', 'image_ids', 'point2D_ids'])
 
 
 class Image(BaseImage):
-    def qvec2rotmat(self):
-        return qvec2rotmat(self.qvec)
+    def quaternion_to_rotation_matrix(self):
+        return quaternion_to_rotation_matrix(self.qvec)
 
 
 CAMERA_MODELS = {
@@ -69,12 +69,12 @@ def read_cameras_text(path):
                 break
             line = line.strip()
             if len(line) > 0 and line[0] != '#':
-                elems = line.split()
-                cam_id = int(elems[0])
-                model = elems[1]
-                width = int(elems[2])
-                height = int(elems[3])
-                params = np.array(tuple(map(float, elems[4:])))
+                elements = line.split()
+                cam_id = int(elements[0])
+                model = elements[1]
+                width = int(elements[2])
+                height = int(elements[3])
+                params = np.array(tuple(map(float, elements[4:])))
                 model_cameras[cam_id] = Camera(id=cam_id, model=model,
                                                width=width, height=height,
                                                params=params)
@@ -129,16 +129,16 @@ def read_images_text(path):
                 break
             line = line.strip()
             if len(line) > 0 and line[0] != '#':
-                elems = line.split()
-                im_id = int(elems[0])
-                qvec = np.array(tuple(map(float, elems[1:5])))
-                tvec = np.array(tuple(map(float, elems[5:8])))
-                cam_id = int(elems[8])
-                image_name = elems[9]
-                elems = fid.readline().split()
-                xys = np.column_stack([tuple(map(float, elems[0::3])),
-                                       tuple(map(float, elems[1::3]))])
-                point_3d_ids = np.array(tuple(map(int, elems[2::3])))
+                elements = line.split()
+                im_id = int(elements[0])
+                qvec = np.array(tuple(map(float, elements[1:5])))
+                tvec = np.array(tuple(map(float, elements[5:8])))
+                cam_id = int(elements[8])
+                image_name = elements[9]
+                elements = fid.readline().split()
+                xys = np.column_stack([tuple(map(float, elements[0::3])),
+                                       tuple(map(float, elements[1::3]))])
+                point_3d_ids = np.array(tuple(map(int, elements[2::3])))
                 model_images.append(Image(
                     id=im_id, qvec=qvec, tvec=tvec,
                     camera_id=cam_id, name=image_name,
@@ -195,16 +195,16 @@ def read_points_3d_text(path):
                 break
             line = line.strip()
             if len(line) > 0 and line[0] != '#':
-                elems = line.split()
-                points_3d_id = int(elems[0])
-                xyz = np.array(tuple(map(float, elems[1:4])))
-                rgb = np.array(tuple(map(int, elems[4:7])))
-                error = float(elems[7])
-                image_ids = np.array(tuple(map(int, elems[8::2])))
-                point_2d_idxs = np.array(tuple(map(int, elems[9::2])))
+                elements = line.split()
+                points_3d_id = int(elements[0])
+                xyz = np.array(tuple(map(float, elements[1:4])))
+                rgb = np.array(tuple(map(int, elements[4:7])))
+                error = float(elements[7])
+                image_ids = np.array(tuple(map(int, elements[8::2])))
+                point_2d_ids = np.array(tuple(map(int, elements[9::2])))
                 points_3d[points_3d_id] = Point3D(id=points_3d_id, xyz=xyz, rgb=rgb,
                                                   error=error, image_ids=image_ids,
-                                                  point2D_idxs=point_2d_idxs)
+                                                  point2D_ids=point_2d_ids)
     return points_3d
 
 
@@ -226,15 +226,15 @@ def read_points3d_binary(path_to_model_file):
             error = np.array(binary_point_line_properties[7])
             track_length = read_next_bytes(
                 fid, num_bytes=8, format_char_sequence='Q')[0]
-            track_elems = read_next_bytes(
+            track_elements = read_next_bytes(
                 fid, num_bytes=8 * track_length,
                 format_char_sequence='ii' * track_length)
-            image_ids = np.array(tuple(map(int, track_elems[0::2])))
-            point_2d_idxs = np.array(tuple(map(int, track_elems[1::2])))
+            image_ids = np.array(tuple(map(int, track_elements[0::2])))
+            point_2d_ids = np.array(tuple(map(int, track_elements[1::2])))
             points_3d[point_3d_id] = Point3D(
                 id=point_3d_id, xyz=xyz, rgb=rgb,
                 error=error, image_ids=image_ids,
-                point2D_idxs=point_2d_idxs)
+                point2D_ids=point_2d_ids)
     return points_3d
 
 
@@ -250,7 +250,7 @@ def read_model(path, ext):
     return model_cameras, model_images, model_points_3d
 
 
-def qvec2rotmat(qvec):
+def quaternion_to_rotation_matrix(qvec):
     return np.array([
         [1 - 2 * qvec[2] ** 2 - 2 * qvec[3] ** 2,
          2 * qvec[1] * qvec[2] - 2 * qvec[0] * qvec[3],
@@ -263,15 +263,15 @@ def qvec2rotmat(qvec):
          1 - 2 * qvec[1] ** 2 - 2 * qvec[2] ** 2]])
 
 
-def rotmat2qvec(rot):
+def rotation_matrix_to_quaternion(rot):
     rxx, ryx, rzx, rxy, ryy, rzy, rxz, ryz, rzz = rot.flat
     k = np.array([
         [rxx - ryy - rzz, 0, 0, 0],
         [ryx + rxy, ryy - rxx - rzz, 0, 0],
         [rzx + rxz, rzy + ryz, rzz - rxx - ryy, 0],
         [ryz - rzy, rzx - rxz, rxy - ryx, rxx + ryy + rzz]]) / 3.0
-    eigvals, eigvecs = np.linalg.eigh(k)
-    qvec = eigvecs[[3, 0, 1, 2], np.argmax(eigvals)]
+    eigenvalues, eigenvectors = np.linalg.eigh(k)
+    qvec = eigenvectors[[3, 0, 1, 2], np.argmax(eigenvalues)]
     if qvec[0] < 0:
         qvec *= -1
     return qvec
@@ -336,7 +336,7 @@ if __name__ == '__main__':
     extrinsic = []
     for im_idx in range(num_images):
         e = np.zeros((4, 4))
-        e[:3, :3] = qvec2rotmat(images[im_idx].qvec)
+        e[:3, :3] = quaternion_to_rotation_matrix(images[im_idx].qvec)
         e[:3, 3] = images[im_idx].tvec
         e[3, 3] = 1
         extrinsic.append(e)

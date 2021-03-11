@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-import torchvision.utils as vutils
+import torchvision.utils
 
 
 # print arguments
@@ -87,7 +87,7 @@ def save_images(logger, mode, images_dict, global_step):
         if len(img.shape) == 3:
             img = img[:, np.newaxis, :, :]
         img = torch.from_numpy(img[:1])
-        return vutils.make_grid(img, padding=0, nrow=1, normalize=True, scale_each=True)
+        return torchvision.utils.make_grid(img, padding=0, nrow=1, normalize=True, scale_each=True)
 
     for key, value in images_dict.items():
         if not isinstance(value, (list, tuple)):

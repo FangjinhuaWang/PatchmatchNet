@@ -198,10 +198,10 @@ def check_geometric_consistency(depth_ref, intrinsics_ref, extrinsics_ref, depth
                                                                                                  extrinsics_src)
     # print(depth_ref.shape)
     # print(depth_reprojected.shape)
-    # check |p_reproj-p_1| < 1
+    # check |p_reproject - p_1| < 1
     dist = np.sqrt((x2d_reprojected - x_ref) ** 2 + (y2d_reprojected - y_ref) ** 2)
 
-    # check |d_reproj-d_1| / d_1 < 0.01
+    # check |d_reproject - d_1| / d_1 < 0.01
     # depth_ref = np.squeeze(depth_ref, 2)
     depth_diff = np.abs(depth_reprojected - depth_ref)
     relative_depth_diff = depth_diff / depth_ref
