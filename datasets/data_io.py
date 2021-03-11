@@ -4,10 +4,11 @@ import re
 import sys
 import struct
 from PIL import Image
+from typing import List, Tuple
 
 
 # Scale image to specific max size
-def scale_to_max_dim(image, max_dim: int):
+def scale_to_max_dim(image: np.ndarray, max_dim: int) -> Tuple[np.ndarray[np.float32], int, int]:
     original_height = image.shape[0]
     original_width = image.shape[1]
     if max_dim > 0:
@@ -20,7 +21,7 @@ def scale_to_max_dim(image, max_dim: int):
 
 
 # Read image and rescale to specified size
-def read_image(filename: str, max_dim: int = -1):
+def read_image(filename: str, max_dim: int = -1) -> Tuple[np.ndarray[np.float32], int, int]:
     image = Image.open(filename)
     # scale 0~255 to 0~1
     np_image = np.array(image, dtype=np.float32) / 255.0
@@ -28,7 +29,7 @@ def read_image(filename: str, max_dim: int = -1):
 
 
 # Save images including binary mask (bool), float (0<= val <= 1), or int (as-is)
-def save_image(filename: str, image):
+def save_image(filename: str, image: np.ndarray):
     if image.dtype == np.bool:
         image = image.astype(np.uint8) * 255
     elif image.dtype == np.float32 or image.dtype == np.float64:
@@ -40,7 +41,7 @@ def save_image(filename: str, image):
 
 
 # Read camera intrinsics, extrinsics, and depth values (min, max)
-def read_cam_file(filename: str):
+def read_cam_file(filename: str) -> Tuple[np.ndarray[np.float32], np.ndarray[np.float32], np.ndarray[np.float32]]:
     with open(filename) as f:
         lines = [line.rstrip() for line in f.readlines()]
     # extrinsics: line [1,5), 4x4 matrix
@@ -57,7 +58,7 @@ def read_cam_file(filename: str):
 
 # Read image pairs from text file; output is a list of tuples each containing the reference image id and a list of
 # source image ids
-def read_pair_file(filename):
+def read_pair_file(filename: str) -> List[Tuple[int, List[int]]]:
     data = []
     with open(filename) as f:
         num_viewpoint = int(f.readline())
@@ -70,7 +71,7 @@ def read_pair_file(filename):
 
 
 # Read binary maps (depth or confidence) from pfm or bin format
-def read_map(path: str, max_dim: int = -1):
+def read_map(path: str, max_dim: int = -1) -> np.ndarray[np.float32]:
     if path.endswith('.bin'):
         in_map = read_bin(path)
     elif path.endswith('.pfm'):
@@ -81,7 +82,7 @@ def read_map(path: str, max_dim: int = -1):
 
 
 # Save binary maps (depth or confidence) in pfm or bin format
-def save_map(path: str, data):
+def save_map(path: str, data: np.ndarray[np.float32]):
     if path.endswith('.bin'):
         save_bin(path, data)
     elif path.endswith('.pfm'):
@@ -91,7 +92,7 @@ def save_map(path: str, data):
 
 
 # Read map from bin file (colmap)
-def read_bin(path: str):
+def read_bin(path: str) -> np.ndarray[np.float32]:
     with open(path, 'rb') as fid:
         width, height, channels = np.genfromtxt(fid, delimiter='&', max_rows=1,
                                                 usecols=(0, 1, 2), dtype=int)
@@ -111,7 +112,7 @@ def read_bin(path: str):
 
 
 # Save map in bin file (colmap)
-def save_bin(path: str, data):
+def save_bin(path: str, data: np.ndarray[np.float32]):
     if data.dtype != np.float32:
         raise Exception('Image data type must be float32.')
 
@@ -142,7 +143,7 @@ def save_bin(path: str, data):
 
 
 # Read map from pfm file
-def read_pfm(filename: str):
+def read_pfm(filename: str) -> np.ndarray[np.float32]:
     # rb: binary file and read only
     file = open(filename, 'rb')
 
@@ -177,13 +178,13 @@ def read_pfm(filename: str):
 
 
 # Save map in pfm file
-def save_pfm(filename: str, data, scale=1):
+def save_pfm(filename: str, data: np.ndarray[np.float32]):
     file = open(filename, 'wb')
 
     data = np.flipud(data)
     # print(image.shape)
 
-    if data.dtype.name != 'float32':
+    if data.dtype != np.float32:
         raise Exception('Image data type must be float32.')
 
     if len(data.shape) == 3 and data.shape[2] == 3:  # color image
@@ -199,7 +200,9 @@ def save_pfm(filename: str, data, scale=1):
     endian = data.dtype.byteorder
 
     if endian == '<' or endian == '=' and sys.byteorder == 'little':
-        scale = -scale
+        scale = -1
+    else:
+        scale = 1
 
     file.write(('%f\n' % scale).encode('utf-8'))
 

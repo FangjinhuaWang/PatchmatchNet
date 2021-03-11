@@ -13,16 +13,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.input_folder is None or not os.path.isdir(args.input_folder):
-        print('ERROR: Invalid input folder')
-        exit(-1)
+        raise Exception('Invalid input folder')
 
     if args.output_folder is None or not os.path.isdir(args.output_folder):
-        print('ERROR: Invalid output folder')
-        exit(-1)
+        raise Exception('Invalid output folder')
 
     if args.scan_list is None or not os.path.isfile(args.scan_list):
-        print('ERROR: Invalid input scan list')
-        exit(-1)
+        raise Exception('Invalid input scan list')
 
     # Read input scan list and create output scan list
     with open(args.scan_list) as f:

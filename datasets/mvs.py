@@ -4,15 +4,19 @@ from torch.utils.data import Dataset
 from datasets.data_io import *
 
 
-class MVSEvalDataset(Dataset):
-    def __init__(self, data_path: str, num_views: int = 10, max_dim: int = 1024, scan_list: str = '',
-                 num_light_idx: int = -1, robust_train: bool = False):
-        super(MVSEvalDataset, self).__init__()
+class MVSDataset(Dataset):
+    def __init__(self, data_path: str, num_views: int = 10, max_dim: int = -1, scan_list: str = '',
+                 robust_train: bool = False, num_light_idx: int = -1, cam_folder: str = 'cams', pair_path: str = 'pair.txt',
+                 image_folder: str = 'images', depth_folder: str = 'depth_gt', index_path: str = None):
+        super(MVSDataset, self).__init__()
 
         self.data_path = data_path
         self.num_views = num_views
         self.max_dim = max_dim
         self.robust_train = robust_train
+        self.cam_folder = cam_folder
+        self.depth_folder = depth_folder
+        self.image_folder = image_folder
 
         if os.path.isfile(scan_list):
             with open(scan_list) as f:
@@ -25,11 +29,20 @@ class MVSEvalDataset(Dataset):
         else:
             prefixes = ['']
 
-        self.metas = []
+        self.metas: List[Tuple[str, str, int, List[int]]] = []
         for scan in scans:
-            pair_data = read_pair_file(os.path.join(self.data_path, scan, 'pair.txt'))
+            pair_data = read_pair_file(os.path.join(self.data_path, scan, pair_path))
             for prefix in prefixes:
                 self.metas += [(scan, prefix, ref, src) for ref, src in pair_data]
+
+        self.has_index = False
+        self.image_index: List[str] = []
+        if index_path is not None:
+            self.has_index = True
+            with open(os.path.join(self.data_path, index_path)) as f:
+                num_entries = int(f.readline().strip())
+                for i in range(num_entries):
+                    self.image_index.append(f.readline().strip().split(' ')[1])
 
     def __len__(self):
         return len(self.metas)
@@ -53,13 +66,16 @@ class MVSEvalDataset(Dataset):
         mask = np.empty(0)
 
         for view_index, view_id in enumerate(view_ids):
-            img_filename = os.path.join(self.data_path, scan, 'images', prefix, '{:0>8}.jpg'.format(view_id))
-            proj_mat_filename = os.path.join(self.data_path, scan, 'cams/{:0>8}_cam.txt'.format(view_id))
+            if self.has_index:
+                img_filename = os.path.join(self.data_path, scan, self.image_folder, self.image_index[view_id])
+            else:
+                img_filename = os.path.join(self.data_path, scan, self.image_folder, prefix, '{:0>8}.jpg'.format(view_id))
 
             image, original_h, original_w = read_image(img_filename, self.max_dim)
             images.append(image.transpose([2, 0, 1]))
 
-            intrinsic, extrinsic, depth_params_ = read_cam_file(proj_mat_filename)
+            cam_filename = os.path.join(self.data_path, scan, self.cam_folder, '{:0>8}_cam.txt'.format(view_id))
+            intrinsic, extrinsic, depth_params_ = read_cam_file(cam_filename)
 
             intrinsic[0] *= image.shape[1] / original_w
             intrinsic[1] *= image.shape[0] / original_h
@@ -68,12 +84,16 @@ class MVSEvalDataset(Dataset):
 
             if view_index == 0:  # reference view
                 depth_params = depth_params_
-                depth_gt_filename = os.path.join(self.data_path, scan, 'depth_gt/{:0>8}.pfm'.format(view_id))
+                if self.has_index:
+                    depth_gt_filename = os.path.join(self.data_path, scan, self.depth_folder, self.image_index[view_id])
+                    depth_gt_filename = os.path.splitext(depth_gt_filename.replace('_undistorted', ''))[0] + '.pfm'
+                else:
+                    depth_gt_filename = os.path.join(self.data_path, scan, self.depth_folder, '{:0>8}.pfm'.format(view_id))
+
                 if os.path.isfile(depth_gt_filename):
                     depth_gt = read_map(depth_gt_filename, self.max_dim)
-                mask_filename = os.path.join(self.data_path, scan, 'masks/{:0>8}.png'.format(view_id))
-                if os.path.isfile(mask_filename):
-                    mask = read_image(mask_filename, self.max_dim)[0]
+                    # Create mask from GT depth map
+                    mask = (depth_gt > depth_params[0]).astype(np.float32)
 
         intrinsics = np.stack(intrinsics)
         extrinsics = np.stack(extrinsics)

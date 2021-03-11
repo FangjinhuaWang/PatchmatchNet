@@ -1,35 +1,37 @@
 import argparse
 import os
 import time
-import torch.backends.cudnn as cudnn
+import torch.backends.cudnn
 import torch.nn.parallel
 
 from plyfile import PlyData, PlyElement
 from torch.utils.data import DataLoader
 from collections import OrderedDict
-from datasets.eval import MVSEvalDataset
+from datasets.mvs import MVSDataset
 from datasets.data_io import *
 from models.net import *
 from utils import *
 
-cudnn.benchmark = True
+torch.backends.cudnn.benchmark = True
 
 parser = argparse.ArgumentParser(description='Predict depth, filter, and fuse')
 
 # High level input/output options
-parser.add_argument('--input_folder', help='input data path')
-parser.add_argument('--output_folder', help='output path')
-parser.add_argument('--checkpoint_path', help='load a specific checkpoint for parameters of model')
-parser.add_argument('--file_format', default='.bin', help='File format for depth maps', choices=['.bin', '.pfm'])
-parser.add_argument('--input_type', default='params', help='Input type of checkpoint', choices=['params', 'module'])
-parser.add_argument('--output_type', default='both', help='Type of outputs to produce', choices=['depth', 'fusion', 'both'])
-parser.add_argument('--scan_list', default='', help='Optional scan list text file to identify input folders')
+parser.add_argument('--input_folder', type=str, help='input data path')
+parser.add_argument('--output_folder', type=str, help='output path')
+parser.add_argument('--checkpoint_path', type=str, help='load a specific checkpoint for parameters of model')
+parser.add_argument('--file_format', type=str, default='.bin', help='File format for depth maps', choices=['.bin', '.pfm'])
+parser.add_argument('--input_type', type=str, default='params', help='Input type of checkpoint', choices=['params', 'module'])
+parser.add_argument('--output_type', type=str, default='both', help='Type of outputs to produce', choices=['depth', 'fusion', 'both'])
 parser.add_argument('--data_parallel', type=bool, default=False, help='Flag to use or skip data parallel mode')
 
 # Dataset loading options
+parser.add_argument('--dataset_type', type=str, default='custom', help='Type of dataset to configure parameters',
+                    choices=['custom', 'dtu', 'eth3d', 'blended'])
 parser.add_argument('--num_views', type=int, default=21, help='total views for each patch-match problem including reference')
-parser.add_argument('--batch_size', type=int, default=1, help='evaluation batch size')
 parser.add_argument('--image_max_dim', type=int, default=1024, help='max image dimension')
+parser.add_argument('--scan_list', type=str, default='', help='Optional scan list text file to identify input folders')
+parser.add_argument('--batch_size', type=int, default=1, help='evaluation batch size')
 
 # PatchMatchNet module options (only used when not loading from file)
 parser.add_argument('--patch_match_iteration', nargs='+', type=int, default=[1, 2, 2],
@@ -96,7 +98,26 @@ def save_depth():
     # sm.save(os.path.join(args.output_folder, 'patchmatchnet-module.pt'))
     # return
 
-    dataset = MVSEvalDataset(args.input_folder, args.num_views, args.image_max_dim, args.scan_list)
+    # Setup dataset parameters based on type of dataset
+    num_light_idx = -1
+    cam_folder = 'cams'
+    pair_path = 'pair.txt'
+    image_folder = 'images'
+    depth_folder = 'depth_gt'
+    index_path = None
+    if args.dataset_type == 'dtu':
+        num_light_idx = 7
+    elif args.dataset_type == 'eth3d':
+        pair_path = 'cams/pair.txt'
+        depth_folder = 'depths'
+        index_path = 'cams/index2prefix.txt'
+    elif args.dataset_type == 'blended':
+        pair_path = 'cams/pair.txt'
+        image_folder = 'blended_images'
+        depth_folder = 'rendered_depth_maps'
+
+    dataset = MVSDataset(args.input_folder, args.num_views, args.image_max_dim, args.scan_list, False, num_light_idx,
+                         cam_folder, pair_path, image_folder, depth_folder, index_path)
     image_loader = DataLoader(dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 
     with torch.no_grad():

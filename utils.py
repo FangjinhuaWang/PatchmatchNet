@@ -107,15 +107,15 @@ class DictAverageMeter(object):
     def update(self, new_input):
         self.count += 1
         if len(self.data) == 0:
-            for k, v in new_input.items():
-                if not isinstance(v, float):
-                    raise NotImplementedError('invalid data {}: {}'.format(k, type(v)))
-                self.data[k] = v
+            for key, value in new_input.items():
+                if not isinstance(value, float):
+                    raise NotImplementedError('invalid data {}: {}'.format(key, type(value)))
+                self.data[key] = value
         else:
-            for k, v in new_input.items():
-                if not isinstance(v, float):
-                    raise NotImplementedError('invalid data {}: {}'.format(k, type(v)))
-                self.data[k] += v
+            for key, value in new_input.items():
+                if not isinstance(value, float):
+                    raise NotImplementedError('invalid data {}: {}'.format(key, type(value)))
+                self.data[key] += value
 
     def mean(self):
         return {k: v / self.count for k, v in self.data.items()}
