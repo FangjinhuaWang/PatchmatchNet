@@ -127,11 +127,10 @@ def save_bin(path: str, data: np.ndarray):
     if data.dtype != np.float32:
         raise Exception('Image data type must be float32.')
 
-    if len(data.shape) == 2 or (len(data.shape) == 3 and data.shape[2] == 1):
-        data = data.squeeze(2)
+    if len(data.shape) == 2:
         height, width = data.shape
         channels = 1
-    elif len(data.shape) == 3 and data.shape[2] == 3:
+    elif len(data.shape) == 3 and (data.shape[2] == 3 or data.shape[2] == 1):
         height, width, channels = data.shape
     else:
         raise Exception('Image must have H x W x 3, H x W x 1 or H x W dimensions.')
@@ -197,7 +196,7 @@ def save_pfm(filename: str, data: np.ndarray):
 
     if len(data.shape) == 3 and data.shape[2] == 3:  # color image
         color = True
-    elif len(data.shape) == 2 or len(data.shape) == 3 and data.shape[2] == 1:  # greyscale
+    elif len(data.shape) == 2 or (len(data.shape) == 3 and data.shape[2] == 1):  # greyscale
         color = False
     else:
         raise Exception('Image must have H x W x 3, H x W x 1 or H x W dimensions.')

@@ -6,11 +6,12 @@ import time
 import torch.backends.cudnn
 import torch.nn.parallel
 
+from datasets.mvs import MVSDataset
+from models import PatchMatchNet, patch_match_net_loss
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from datasets.mvs import MVSDataset
-from models import *
-from utils import *
+from utils import DictAverageMeter, abs_depth_error_metrics, make_no_grad_func, print_args, save_scalars, save_images,\
+    tensor2float, to_cuda, threshold_metrics
 
 torch.backends.cudnn.benchmark = True
 
@@ -19,17 +20,15 @@ parser.add_argument('--mode', type=str, default='train', help='Execution mode', 
 parser.add_argument('--input_folder', type=str, help='input data path')
 parser.add_argument('--output_folder', type=str, help='output path')
 parser.add_argument('--checkpoint_path', type=str, help='load a specific checkpoint for parameters')
-parser.add_argument('--depth_format', type=str, default='.bin', help='File format for depth maps',
-                    choices=['.bin', '.pfm'])
 parser.add_argument('--data_parallel', type=bool, default=False, help='Flag to use or skip data parallel mode')
 
 # Dataset loading options
-parser.add_argument('--num_views', type=int, default=11,
-                    help='total views for each patch-match problem including reference')
+parser.add_argument('--dataset_type', type=str, default='custom', help='Type of dataset to configure parameters',
+                    choices=['custom', 'dtu', 'eth3d', 'blended'])
+parser.add_argument('--num_views', type=int, default=11, help='total views for each patch-match problem including reference')
 parser.add_argument('--image_max_dim', type=int, default=640, help='max image dimension')
 parser.add_argument('--train_list', type=str, default='', help='Optional scan list text file to identify input folders')
-parser.add_argument('--test_list', type=str, default='',
-                    help='Optional scan list text file to identify input folders')
+parser.add_argument('--test_list', type=str, default='', help='Optional scan list text file to identify input folders')
 parser.add_argument('--image_light_idx', type=int, default=-1, help='Image light indexes')
 parser.add_argument('--batch_size', type=int, default=12, help='train batch size')
 
@@ -45,14 +44,14 @@ parser.add_argument('--save_freq', type=int, default=1, help='save checkpoint fr
 parser.add_argument('--rand_seed', type=int, default=1, metavar='S', help='random seed')
 
 # PatchMatchNet module options (only used when not loading from file)
+parser.add_argument('--patch_match_interval_scale', nargs='+', type=float, default=[0.005, 0.0125, 0.025],
+                    help='normalized interval in inverse depth range to generate samples in local perturbation')
+parser.add_argument('--propagation_range', nargs='+', type=int, default=[6, 4, 2],
+                    help='fixed offset of sampling points for propagation of patch match on stages 1,2,3')
 parser.add_argument('--patch_match_iteration', nargs='+', type=int, default=[1, 2, 2],
                     help='num of iteration of patch match on stages 1,2,3')
 parser.add_argument('--patch_match_num_sample', nargs='+', type=int, default=[8, 8, 16],
                     help='num of generated samples in local perturbation on stages 1,2,3')
-parser.add_argument('--patch_match_interval_scale', nargs='+', type=float, default=[0.005, 0.0125, 0.025],
-                    help='normalized interval in inverse depth range to generate samples in local perturbation')
-parser.add_argument('--patch_match_range', nargs='+', type=int, default=[6, 4, 2],
-                    help='fixed offset of sampling points for propagation of patch match on stages 1,2,3')
 parser.add_argument('--propagate_neighbors', nargs='+', type=int, default=[0, 8, 16],
                     help='num of neighbors for adaptive propagation on stages 1,2,3')
 parser.add_argument('--evaluate_neighbors', nargs='+', type=int, default=[9, 9, 9],
@@ -73,19 +72,37 @@ if args.mode == 'train':
     logger = SummaryWriter(args.output_folder)
 
 # dataset and loader setup
-train_dataset = MVSDataset(args.input_folder, args.num_views, args.image_max_dim, args.train_list,
-                           True, args.image_light_idx)
-test_dataset = MVSDataset(args.input_folder, args.num_views, args.image_max_dim, args.test_list,
-                          False, args.image_light_idx)
+num_light_idx = -1
+cam_folder = 'cams'
+pair_path = 'pair.txt'
+image_folder = 'images'
+depth_folder = 'depth_gt'
+index_path = None
+if args.dataset_type == 'dtu':
+    num_light_idx = 7
+elif args.dataset_type == 'eth3d':
+    pair_path = 'cams/pair.txt'
+    depth_folder = 'depths'
+    index_path = 'cams/index2prefix.txt'
+elif args.dataset_type == 'blended':
+    pair_path = 'cams/pair.txt'
+    image_folder = 'blended_images'
+    depth_folder = 'rendered_depth_maps'
+
+dataset = MVSDataset(args.input_folder, args.num_views, args.image_max_dim, args.scan_list, False, num_light_idx,
+                     cam_folder, pair_path, image_folder, depth_folder, index_path)
+
+train_dataset = MVSDataset(args.input_folder, args.num_views, args.image_max_dim, args.train_list, True, num_light_idx,
+                           cam_folder, pair_path, image_folder, depth_folder, index_path)
+test_dataset = MVSDataset(args.input_folder, args.num_views, args.image_max_dim, args.test_list, False, num_light_idx,
+                          cam_folder, pair_path, image_folder, depth_folder, index_path)
 
 train_image_loader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_workers=8, drop_last=True)
 test_image_loader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 
 # model, optimizer
-model = PatchMatchNet(patch_match_interval_scale=args.patch_match_interval_scale,
-                      propagation_range=args.patch_match_range, patch_match_iteration=args.patch_match_iteration,
-                      patch_match_num_sample=args.patch_match_num_sample,
-                      propagate_neighbors=args.propagate_neighbors, evaluate_neighbors=args.evaluate_neighbors)
+model = PatchMatchNet(args.patch_match_interval_scale, args.propagation_range, args.patch_match_iteration,
+                      args.patch_match_num_sample, args.propagate_neighbors, args.evaluate_neighbors, True)
 
 if args.data_parallel:
     model = torch.nn.DataParallel(model)
@@ -190,19 +207,20 @@ def train_sample(sample, detailed_summary=False):
     depth_gt = sample_cuda['depth_gt']
     mask = sample_cuda['mask']
 
-    outputs = model.forward(sample_cuda['images'], sample_cuda['intrinsics'], sample_cuda['extrinsics'], sample_cuda['depth_params'])
+    depth, _, depths = model.forward(sample_cuda['images'], sample_cuda['intrinsics'], sample_cuda['extrinsics'],
+                                     sample_cuda['depth_params'])
 
     depth_est = outputs['refined_depth']
 
     depth_patchmatch = outputs['depth_patchmatch']
 
-    loss = model_loss(depth_patchmatch, depth_est, depth_gt, mask)
+    loss = model_loss(depths, depth_gt, mask)
     loss.backward()
     optimizer.step()
 
     scalar_outputs = {'loss': loss}
-    image_outputs = {'depth_refined_stage_0': depth_est['stage_0'] * mask['stage_0'],
-                     'depth_gt_stage_0': depth_gt['stage_0'] * mask['stage_0'],
+    image_outputs = {'depth_refined_stage_0': depths[0] * mask,
+                     'depth_gt_stage_0': depth_gt * mask,
                      'depth_patchmatch_stage_1': depth_patchmatch['stage_1'][-1] * mask['stage_1'],
                      'depth_patchmatch_stage_2': depth_patchmatch['stage_2'][-1] * mask['stage_2'],
                      'depth_patchmatch_stage_3': depth_patchmatch['stage_3'][-1] * mask['stage_3'],

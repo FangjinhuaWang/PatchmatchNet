@@ -8,12 +8,12 @@ import torch.backends.cudnn
 import torch.nn as nn
 import torch.nn.parallel
 
-from plyfile import PlyData, PlyElement
-from torch.utils.data import DataLoader
 from datasets.mvs import MVSDataset
 from datasets.data_io import read_cam_file, read_image, read_map, read_pair_file, save_map, save_image
 from models.net import PatchMatchNet
+from plyfile import PlyData, PlyElement
 from torch import Tensor
+from torch.utils.data import DataLoader
 from typing import Dict
 from utils import print_args, tensor2numpy, to_cuda
 
@@ -39,14 +39,14 @@ parser.add_argument('--scan_list', type=str, default='', help='Optional scan lis
 parser.add_argument('--batch_size', type=int, default=1, help='evaluation batch size')
 
 # PatchMatchNet module options (only used when not loading from file)
+parser.add_argument('--patch_match_interval_scale', nargs='+', type=float, default=[0.005, 0.0125, 0.025],
+                    help='normalized interval in inverse depth range to generate samples in local perturbation')
+parser.add_argument('--propagation_range', nargs='+', type=int, default=[6, 4, 2],
+                    help='fixed offset of sampling points for propagation of patch match on stages 1,2,3')
 parser.add_argument('--patch_match_iteration', nargs='+', type=int, default=[1, 2, 2],
                     help='num of iteration of patch match on stages 1,2,3')
 parser.add_argument('--patch_match_num_sample', nargs='+', type=int, default=[8, 8, 16],
                     help='num of generated samples in local perturbation on stages 1,2,3')
-parser.add_argument('--patch_match_interval_scale', nargs='+', type=float, default=[0.005, 0.0125, 0.025],
-                    help='normalized interval in inverse depth range to generate samples in local perturbation')
-parser.add_argument('--patch_match_range', nargs='+', type=int, default=[6, 4, 2],
-                    help='fixed offset of sampling points for propagation of patch match on stages 1,2,3')
 parser.add_argument('--propagate_neighbors', nargs='+', type=int, default=[0, 8, 16],
                     help='num of neighbors for adaptive propagation on stages 1,2,3')
 parser.add_argument('--evaluate_neighbors', nargs='+', type=int, default=[9, 9, 9],
@@ -69,10 +69,8 @@ print_args(args)
 def save_depth():
     if args.input_type == 'params':
         print('Evaluating model with params from {}'.format(args.checkpoint_path))
-        model = PatchMatchNet(patch_match_interval_scale=args.patch_match_interval_scale,
-                              propagation_range=args.patch_match_range, patch_match_iteration=args.patch_match_iteration,
-                              patch_match_num_sample=args.patch_match_num_sample,
-                              propagate_neighbors=args.propagate_neighbors, evaluate_neighbors=args.evaluate_neighbors)
+        model = PatchMatchNet(args.patch_match_interval_scale, args.propagation_range, args.patch_match_iteration,
+                              args.patch_match_num_sample, args.propagate_neighbors, args.evaluate_neighbors, False)
 
         state_dict = torch.load(args.checkpoint_path)['model']
 
@@ -130,8 +128,8 @@ def save_depth():
             start_time = time.time()
             sample_cuda = to_cuda(sample)
 
-            (depth, conf) = model.forward(sample_cuda['images'], sample_cuda['intrinsics'], sample_cuda['extrinsics'],
-                                          sample_cuda['depth_params'])
+            depth, conf, _ = model.forward(sample_cuda['images'], sample_cuda['intrinsics'], sample_cuda['extrinsics'],
+                                           sample_cuda['depth_params'])
 
             depth = tensor2numpy(depth)
             conf = tensor2numpy(conf)

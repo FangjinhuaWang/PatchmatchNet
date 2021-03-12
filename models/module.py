@@ -13,7 +13,7 @@ class ConvBnReLU(nn.Module):
                               bias=False)
         self.bn = nn.BatchNorm2d(out_channels)
 
-    def forward(self, x: Tensor):
+    def forward(self, x: Tensor) -> Tensor:
         return nn.functional.relu(self.bn(self.conv(x)), inplace=True)
 
 
@@ -25,7 +25,7 @@ class ConvBnReLU3D(nn.Module):
                               bias=False)
         self.bn = nn.BatchNorm3d(out_channels)
 
-    def forward(self, x: Tensor):
+    def forward(self, x: Tensor) -> Tensor:
         return nn.functional.relu(self.bn(self.conv(x)), inplace=True)
 
 
@@ -37,7 +37,7 @@ class ConvBnReLU1D(nn.Module):
                               bias=False)
         self.bn = nn.BatchNorm1d(out_channels)
 
-    def forward(self, x: Tensor):
+    def forward(self, x: Tensor) -> Tensor:
         return nn.functional.relu(self.bn(self.conv(x)), inplace=True)
 
 
@@ -47,11 +47,11 @@ class ConvBn(nn.Module):
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=pad, bias=False)
         self.bn = nn.BatchNorm2d(out_channels)
 
-    def forward(self, x: Tensor):
+    def forward(self, x: Tensor) -> Tensor:
         return self.bn(self.conv(x))
 
 
-def differentiable_warping(src_fea: Tensor, src_proj: Tensor, ref_proj: Tensor, depth_samples: Tensor):
+def differentiable_warping(src_fea: Tensor, src_proj: Tensor, ref_proj: Tensor, depth_samples: Tensor) -> Tensor:
     # src_fea: [B, C, H_in, W_in]
     # src_proj: [B, 4, 4]
     # ref_proj: [B, 4, 4]
@@ -87,5 +87,5 @@ def differentiable_warping(src_fea: Tensor, src_proj: Tensor, ref_proj: Tensor, 
                                      padding_mode='zeros', align_corners=False).view(batch, channels, num_depth, height, width)
 
 
-def is_empty(x: Tensor):
+def is_empty(x: Tensor) -> bool:
     return x.numel() == 0
