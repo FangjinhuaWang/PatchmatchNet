@@ -213,20 +213,19 @@ def adjust_image_dims(images: List[Tensor], intrinsics: Tensor) -> Tuple[List[Te
     return images, intrinsics, ref_height, ref_width
 
 
-def patch_match_net_loss(depths: List[List[Tensor]], depth_gt: Tensor, mask: Tensor) -> Tensor:
+def patch_match_net_loss(depths: List[List[Tensor]], depth_gt: Tensor, mask: Tensor) -> Tuple[Tensor, List[Tensor], List[Tensor]]:
     loss: Tensor = torch.zeros(1, device=mask.device)
-    for stage_depths in depths:
-        _, _, height, width = stage_depths[0].size()
-        stage_mask = nn.functional.interpolate(mask.unsqueeze(1), size=[height, width], mode='bilinear', align_corners=False) > 0.5
-        stage_depth_gt = nn.functional.interpolate(depth_gt.unsqueeze(1), size=[height, width], mode='bilinear', align_corners=False)
-        print('mask: ', stage_mask.shape)
-        print('GT: ', stage_depth_gt.shape)
-        print('depth: ', stage_depths[0].shape)
+    gt_depths: List[Tensor] = [torch.empty(0), torch.empty(0), torch.empty(0), torch.empty(0)]
+    masks: List[Tensor] = [torch.empty(0), torch.empty(0), torch.empty(0), torch.empty(0)]
+    for i in range(len(depths)):
+        _, _, height, width = depths[i][0].size()
+        masks[i] = nn.functional.interpolate(mask.unsqueeze(1), size=[height, width], mode='bilinear', align_corners=False) > 0.5
+        gt_depths[i] = nn.functional.interpolate(depth_gt.unsqueeze(1), size=[height, width], mode='bilinear', align_corners=False)
 
-        for depth in stage_depths:
-            loss += nn.functional.smooth_l1_loss(depth[stage_mask], stage_depth_gt[stage_mask], reduction='mean')
+        for depth in depths[i]:
+            loss += nn.functional.smooth_l1_loss(depth[masks[i]], gt_depths[i][masks[i]], reduction='mean')
 
-    return loss
+    return loss, gt_depths, masks
 
 
 def patch_match_net_loss2(depth_patch_match, refined_depth, depth_gt, mask) -> Tensor:

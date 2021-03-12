@@ -2,6 +2,8 @@ import numpy as np
 import torch
 import torchvision.utils
 
+from torch import Tensor
+
 
 # print arguments
 def print_args(args):
@@ -123,7 +125,7 @@ class DictAverageMeter(object):
 
 # a wrapper to compute metrics for each image individually
 def compute_metrics_for_each_image(metric_func):
-    def wrapper(depth_est, depth_gt, mask, *args):
+    def wrapper(depth_est: Tensor, depth_gt: Tensor, mask: Tensor, *args) -> Tensor:
         batch_size = depth_gt.shape[0]
         results = []
         # compute result one by one
@@ -137,9 +139,9 @@ def compute_metrics_for_each_image(metric_func):
 
 @make_no_grad_func
 @compute_metrics_for_each_image
-def threshold_metrics(depth_est, depth_gt, mask, threshold):
+def threshold_metrics(depth_est: Tensor, depth_gt: Tensor, mask: Tensor, threshold: float) -> Tensor:
     # if threshold is int or float, then True
-    assert isinstance(threshold, (int, float))
+    assert isinstance(threshold, float)
     depth_est, depth_gt = depth_est[mask], depth_gt[mask]
     errors = torch.abs(depth_est - depth_gt)
     err_mask = errors > threshold
@@ -149,6 +151,6 @@ def threshold_metrics(depth_est, depth_gt, mask, threshold):
 # NOTE: please do not use this to build up training loss
 @make_no_grad_func
 @compute_metrics_for_each_image
-def abs_depth_error_metrics(depth_est, depth_gt, mask):
+def abs_depth_error_metrics(depth_est: Tensor, depth_gt: Tensor, mask: Tensor) -> Tensor:
     depth_est, depth_gt = depth_est[mask], depth_gt[mask]
     return torch.mean((depth_est - depth_gt).abs())
