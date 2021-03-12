@@ -54,15 +54,15 @@ def read_reconstruction(path: str) -> Tuple[List[Camera], List[Image], List[Tupl
     cameras = []
     images = []
     for cam_file in os.listdir(os.path.join(path, 'cams')):
-        id = int(cam_file.split('_')[0])
+        im_id = int(cam_file.split('_')[0])
         im_file = cam_file.split('_')[0] + '.jpg'
         image = PilImage.open(os.path.join(path, 'images', im_file), 'r')
         intrinsics, extrinsics, _ = read_cam_file(os.path.join(path, 'cams', cam_file))
-        cameras.append(Camera(id, 'PINHOLE', image.width, image.height,
+        cameras.append(Camera(im_id, 'PINHOLE', image.width, image.height,
                               [intrinsics[0, 0], intrinsics[1, 1], intrinsics[0, 2], intrinsics[1, 2]]))
         qvec = rotation_matrix_to_quaternion(extrinsics[0:3, 0:3])
         tvec = list(extrinsics[0:3, 3])
-        images.append(Image(id, qvec, tvec, id, im_file))
+        images.append(Image(im_id, qvec, tvec, im_id, im_file))
 
     return cameras, images, read_pair_file(os.path.join(path, 'pair.txt'))
 

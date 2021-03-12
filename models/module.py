@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as nnfun
+import torch.nn.functional
+
 from torch import Tensor
 
 
@@ -13,7 +14,7 @@ class ConvBnReLU(nn.Module):
         self.bn = nn.BatchNorm2d(out_channels)
 
     def forward(self, x: Tensor):
-        return nnfun.relu(self.bn(self.conv(x)), inplace=True)
+        return nn.functional.relu(self.bn(self.conv(x)), inplace=True)
 
 
 class ConvBnReLU3D(nn.Module):
@@ -25,7 +26,7 @@ class ConvBnReLU3D(nn.Module):
         self.bn = nn.BatchNorm3d(out_channels)
 
     def forward(self, x: Tensor):
-        return nnfun.relu(self.bn(self.conv(x)), inplace=True)
+        return nn.functional.relu(self.bn(self.conv(x)), inplace=True)
 
 
 class ConvBnReLU1D(nn.Module):
@@ -37,7 +38,7 @@ class ConvBnReLU1D(nn.Module):
         self.bn = nn.BatchNorm1d(out_channels)
 
     def forward(self, x: Tensor):
-        return nnfun.relu(self.bn(self.conv(x)), inplace=True)
+        return nn.functional.relu(self.bn(self.conv(x)), inplace=True)
 
 
 class ConvBn(nn.Module):
@@ -82,8 +83,8 @@ def differentiable_warping(src_fea: Tensor, src_proj: Tensor, ref_proj: Tensor, 
         proj_y_normalized = proj_xy[:, 1, :, :] / ((height - 1) / 2) - 1
         proj_xy = torch.stack((proj_x_normalized, proj_y_normalized), dim=3)  # [B, num_depth, H*W, 2]
 
-    return nnfun.grid_sample(src_fea, proj_xy.view(batch, num_depth * height, width, 2), mode='bilinear',
-                             padding_mode='zeros', align_corners=False).view(batch, channels, num_depth, height, width)
+    return nn.functional.grid_sample(src_fea, proj_xy.view(batch, num_depth * height, width, 2), mode='bilinear',
+                                     padding_mode='zeros', align_corners=False).view(batch, channels, num_depth, height, width)
 
 
 def is_empty(x: Tensor):

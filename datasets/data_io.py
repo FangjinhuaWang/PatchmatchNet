@@ -3,6 +3,7 @@ import numpy as np
 import re
 import sys
 import struct
+
 from PIL import Image
 from typing import List, Tuple, Dict
 

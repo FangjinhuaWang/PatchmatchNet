@@ -1,6 +1,7 @@
 import argparse
 import os
 import shutil
+
 from datasets.data_io import read_map, read_image, save_map, save_image
 from PIL import Image
 

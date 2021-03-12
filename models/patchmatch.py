@@ -1,4 +1,9 @@
-from .module import *
+import torch
+import torch.nn as nn
+import torch.nn.functional
+
+from module import ConvBnReLU3D, is_empty, differentiable_warping
+from torch import Tensor
 from typing import List
 
 
@@ -49,8 +54,8 @@ class Propagation(nn.Module):
         # [B,D,H,W]
         batch_size, num_depth, height, width = depth.size()
         num_neighbors = grid.size()[1] // height
-        prop_depth = nnfun.grid_sample(depth[:, num_depth // 2, :, :].unsqueeze(1), grid, mode='bilinear',
-                                       padding_mode='border', align_corners=False)
+        prop_depth = nn.functional.grid_sample(depth[:, num_depth // 2, :, :].unsqueeze(1), grid, mode='bilinear',
+                                               padding_mode='border', align_corners=False)
         del grid
         prop_depth = prop_depth.view(batch_size, num_neighbors, height, width)
         return torch.sort(torch.cat((depth, prop_depth), dim=1), dim=1)[0]
@@ -297,8 +302,8 @@ class SimilarityNet(nn.Module):
 
         batch, group_size, num_depth, height, width = x1.size()
         num_neighbors = grid.size()[1] // height
-        x1 = nnfun.grid_sample(self.similarity(self.conv1(self.conv0(x1))).squeeze(1), grid, mode='bilinear',
-                               padding_mode='border', align_corners=False)
+        x1 = nn.functional.grid_sample(self.similarity(self.conv1(self.conv0(x1))).squeeze(1), grid, mode='bilinear',
+                                       padding_mode='border', align_corners=False)
 
         # [B,num_depth,9,H,W]
         x1 = x1.view(batch, num_depth, num_neighbors, height, width)
@@ -325,7 +330,7 @@ class FeatureWeightNet(nn.Module):
         # grid: position of sampling points in adaptive spatial cost aggregation
         batch_size, num_channels, height, width = ref_feature.size()
 
-        weight = nnfun.grid_sample(ref_feature, grid, mode='bilinear', padding_mode='border', align_corners=False)
+        weight = nn.functional.grid_sample(ref_feature, grid, mode='bilinear', padding_mode='border', align_corners=False)
         weight = weight.view(batch_size, self.group_size, num_channels // self.group_size, self.neighbors, height,
                              width)
 
@@ -354,7 +359,7 @@ def depth_weight(depth_sample: Tensor, depth_min: float, depth_max: float, grid:
     del depth_sample
     x = (x - inverse_depth_max) / (inverse_depth_min - inverse_depth_max)
 
-    x1 = nnfun.grid_sample(x.float(), grid, mode='bilinear', padding_mode='border', align_corners=False)
+    x1 = nn.functional.grid_sample(x.float(), grid, mode='bilinear', padding_mode='border', align_corners=False)
     del grid
     x1 = x1.view(batch, num_depth, neighbors, height, width)
 
