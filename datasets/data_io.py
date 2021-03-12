@@ -127,6 +127,7 @@ def save_bin(path: str, data: np.ndarray):
         raise Exception('Image data type must be float32.')
 
     if len(data.shape) == 2 or (len(data.shape) == 3 and data.shape[2] == 1):
+        data = data.squeeze(2)
         height, width = data.shape
         channels = 1
     elif len(data.shape) == 3 and data.shape[2] == 3:
@@ -138,12 +139,10 @@ def save_bin(path: str, data: np.ndarray):
         fid.write(str(width) + '&' + str(height) + '&' + str(channels) + '&')
 
     with open(path, 'ab') as fid:
-        if len(data.shape) == 2 or (len(data.shape) == 3 and data.shape[2] == 1):
+        if len(data.shape) == 2:
             image_trans = np.transpose(data, (1, 0))
-        elif len(data.shape) == 3 and data.shape[2] == 3:
-            image_trans = np.transpose(data, (1, 0, 2))
         else:
-            raise Exception('Image must have H x W x 3, H x W x 1 or H x W dimensions.')
+            image_trans = np.transpose(data, (1, 0, 2))
         data_1d = image_trans.reshape(-1, order='F')
         data_list = data_1d.tolist()
         endian_character = '<'

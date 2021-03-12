@@ -58,7 +58,7 @@ def read_reconstruction(path: str) -> Tuple[List[Camera], List[Image], List[Tupl
         im_file = cam_file.split('_')[0] + '.jpg'
         image = PilImage.open(os.path.join(path, 'images', im_file), 'r')
         intrinsics, extrinsics, _ = read_cam_file(os.path.join(path, 'cams', cam_file))
-        cameras.append(Camera(id, 'PINHOLE', image.width(), image.height(),
+        cameras.append(Camera(id, 'PINHOLE', image.width, image.height,
                               [intrinsics[0, 0], intrinsics[1, 1], intrinsics[0, 2], intrinsics[1, 2]]))
         qvec = rotation_matrix_to_quaternion(extrinsics[0:3, 0:3])
         tvec = list(extrinsics[0:3, 3])
@@ -70,7 +70,7 @@ def read_reconstruction(path: str) -> Tuple[List[Camera], List[Image], List[Tupl
 def write_config(path: str, images: List[Image], pairs: List[Tuple[int, List[int]]]):
     image_names: Dict[int, str] = {image.id: image.name for image in images}
     with open(path, 'w') as f:
-        f.writelines([','.join([image_names[view_id] for view_id in [pair[0]] + pair[1]]) for pair in pairs])
+        f.writelines([','.join([image_names[view_id] for view_id in [pair[0]] + pair[1]]) + '\n' for pair in pairs])
 
 
 def write_sparse(path: str, cameras: List[Camera], images: List[Image]):
@@ -81,8 +81,8 @@ def write_sparse(path: str, cameras: List[Camera], images: List[Image]):
 
 # Write cameras in colmap text format
 def write_cameras(path: str, cameras: List[Camera]):
-    cam_list = ['{} {} {} {} {} {} {} {}'.format(c.id, c.model, c.width, c.height, c.params[0], c.params[1],
-                                                 c.params[2], c.params[3]) for c in cameras]
+    cam_list = ['{} {} {} {} {} {} {} {}\n'.format(c.id, c.model, c.width, c.height, c.params[0], c.params[1],
+                                                   c.params[2], c.params[3]) for c in cameras]
     with open(path, 'w') as f:
         f.write('# Camera list with one line of data per camera:\n')
         f.write('#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n')
@@ -92,8 +92,8 @@ def write_cameras(path: str, cameras: List[Camera]):
 
 # Write images in colmap text format
 def write_images(path: str, images: List[Image]):
-    image_list = ['{} {} {} {} {} {} {} {} {} {}\n'.format(i.id, i.qvec[0], i.qvec[1], i.qvec[2], i.qvec[3], i.tvec[0],
-                                                           i.tvec[1], i.tvec[2], i.camera_id, i.name) for k, i in images]
+    image_list = ['{} {} {} {} {} {} {} {} {} {}\n\n'.format(i.id, i.qvec[0], i.qvec[1], i.qvec[2], i.qvec[3], i.tvec[0],
+                                                             i.tvec[1], i.tvec[2], i.camera_id, i.name) for i in images]
     with open(path, 'w') as f:
         f.write('# Image list with two lines of data per image:\n')
         f.write('#   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME\n')
