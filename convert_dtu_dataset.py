@@ -41,20 +41,22 @@ if __name__ == '__main__':
         os.makedirs(mask_path, exist_ok=True)
 
         # Copy pair file
-        shutil.copy(os.path.join(args.input_folder, 'Cameras/pair.txt'), os.path.join(scan_path, 'pair.txt'))
+        shutil.copy(os.path.join(args.input_folder, 'Cameras_1/pair.txt'), os.path.join(scan_path, 'pair.txt'))
 
-        for cam_file in os.listdir(os.path.join(args.input_folder, 'Cameras/train')):
+        for cam_file in os.listdir(os.path.join(args.input_folder, 'Cameras_1/train')):
             # Extract view ID and copy cam file
             view_id = int(cam_file.split('_')[0])
-            shutil.copy(os.path.join(args.input_folder, 'Cameras/train', cam_file), os.path.join(cam_path, cam_file))
+            shutil.copy(os.path.join(args.input_folder, 'Cameras_1/train', cam_file), os.path.join(cam_path, cam_file))
 
             # Copy GT depth map after resizing and cropping
-            depth_map = read_map(os.path.join(args.input_folder, 'Depths_raw', scan, 'depth_map_{:0>4}.pfm'.format(view_id)), 800)
+            depth_map = read_map(os.path.join(
+                args.input_folder, 'Depths_raw', scan, 'depth_map_{:0>4}.pfm'.format(view_id)), 800)
             depth_map = depth_map[44:556, 80:720]
             save_map(os.path.join(depth_path, '{:0>8}.pfm'.format(view_id)), depth_map)
 
             # Copy mask after resizing and cropping
-            mask = read_image(os.path.join(args.input_folder, 'Depths_raw', scan, 'depth_visual_{:0>4}.png'.format(view_id)), 800)[0]
+            mask = read_image(os.path.join(
+                args.input_folder, 'Depths_raw', scan, 'depth_visual_{:0>4}.png'.format(view_id)), 800)[0]
             mask = mask[44:556, 80:720] > 0.04
             save_image(os.path.join(mask_path, '{:0>8}.png'.format(view_id)), mask)
 
@@ -62,6 +64,7 @@ if __name__ == '__main__':
                 # Copy images for each light index into separate sub-folders
                 image_prefix_path = os.path.join(image_path, str(light_idx))
                 os.makedirs(image_prefix_path, exist_ok=True)
-                image = Image.open(os.path.join(args.input_folder,
-                                                'Rectified/{}_train/rect_{:0>3}_{}_r5000.png'.format(scan, view_id + 1, light_idx)))
+                image = Image.open(os.path.join(
+                    args.input_folder, 'Rectified/{}_train/rect_{:0>3}_{}_r5000.png'.format(
+                        scan, view_id + 1, light_idx)))
                 image.save(os.path.join(image_prefix_path, '{:0>8}.jpg'.format(view_id)))

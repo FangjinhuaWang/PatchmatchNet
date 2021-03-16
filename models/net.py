@@ -10,6 +10,7 @@ from models.patchmatch import PatchMatch
 
 
 class FeatureNet(nn.Module):
+    # noinspection PyTypeChecker
     def __init__(self):
         super(FeatureNet, self).__init__()
 
@@ -46,12 +47,14 @@ class FeatureNet(nn.Module):
 
         output_feature[3] = self.output1(conv10)
 
-        intra_feat = nn.functional.interpolate(conv10, scale_factor=2.0, mode='bilinear', align_corners=False) + self.inner1(conv7)
+        intra_feat = nn.functional.interpolate(
+            conv10, scale_factor=2.0, mode='bilinear', align_corners=False) + self.inner1(conv7)
         del conv7
         del conv10
         output_feature[2] = self.output2(intra_feat)
 
-        intra_feat = nn.functional.interpolate(intra_feat, scale_factor=2.0, mode='bilinear', align_corners=False) + self.inner2(conv4)
+        intra_feat = nn.functional.interpolate(
+            intra_feat, scale_factor=2.0, mode='bilinear', align_corners=False) + self.inner2(conv4)
         del conv4
         output_feature[1] = self.output3(intra_feat)
 
@@ -61,6 +64,7 @@ class FeatureNet(nn.Module):
 
 
 class Refinement(nn.Module):
+    # noinspection PyTypeChecker
     def __init__(self):
         super(Refinement, self).__init__()
 
@@ -96,9 +100,9 @@ class Refinement(nn.Module):
 
 
 class PatchMatchNet(nn.Module):
-    def __init__(self, patch_match_interval_scale: List[float], propagation_range: List[int], patch_match_iteration: List[int],
-                 patch_match_num_sample: List[int], propagate_neighbors: List[int], evaluate_neighbors: List[int],
-                 save_all_depths: bool = False):
+    def __init__(self, patch_match_interval_scale: List[float], propagation_range: List[int],
+                 patch_match_iteration: List[int], patch_match_num_sample: List[int], propagate_neighbors: List[int],
+                 evaluate_neighbors: List[int], save_all_depths: bool = False):
         super(PatchMatchNet, self).__init__()
 
         self.stages = 4
@@ -123,7 +127,8 @@ class PatchMatchNet(nn.Module):
 
         self.upsample_net = Refinement()
 
-    def forward(self, images: List[Tensor], intrinsics: Tensor, extrinsics: Tensor, depth_params: Tensor) -> Tuple[Tensor, Tensor, List[List[Tensor]]]:
+    def forward(self, images: List[Tensor], intrinsics: Tensor, extrinsics: Tensor, depth_params: Tensor) \
+            -> Tuple[Tensor, Tensor, List[List[Tensor]]]:
         images, intrinsics, height, width = adjust_image_dims(images, intrinsics)
         num_images = len(images)
 
@@ -159,7 +164,8 @@ class PatchMatchNet(nn.Module):
             ref_proj, src_proj = proj_stage[0], proj_stage[1:]
             scale *= 2.0
 
-            # Need to select correct module with conditional since TorchScript does not support `getattr` with variable name
+            # Need to select correct module with conditional since TorchScript does not support `getattr`
+            # with variable name
             if stage == 3:
                 depth, score, weights, samples = self.patchmatch_3(ref_feature[stage], src_features_stage, ref_proj, src_proj,
                                                                    depth_min, depth_max, depth, weights, self.save_all_depths)
@@ -189,13 +195,15 @@ class PatchMatchNet(nn.Module):
         del src_features
 
         # [B, 1, H, W]
-        depth_values = torch.arange(self.num_depth, device=score.device, dtype=torch.float32).view(1, self.num_depth, 1, 1)
+        depth_values = torch.arange(
+            self.num_depth, device=score.device, dtype=torch.float32).view(1, self.num_depth, 1, 1)
         depth_index = torch.sum(score * depth_values, 1, keepdim=True).long().clamp(0, self.num_depth - 1)
 
-        score_sum4 = 4 * nn.functional.avg_pool3d(nn.functional.pad(score.unsqueeze(1), pad=(0, 0, 0, 0, 1, 2)), (4, 1, 1),
-                                                  stride=1, padding=0).squeeze(1)
+        score_sum4 = 4 * nn.functional.avg_pool3d(
+            nn.functional.pad(score.unsqueeze(1), pad=(0, 0, 0, 0, 1, 2)), (4, 1, 1), stride=1, padding=0).squeeze(1)
         confidence = torch.gather(score_sum4, 1, depth_index)
-        confidence = nn.functional.interpolate(confidence, size=[height, width], mode='bilinear', align_corners=False).squeeze(1)
+        confidence = nn.functional.interpolate(
+            confidence, size=[height, width], mode='bilinear', align_corners=False).squeeze(1)
 
         return depth, confidence, depths
 
@@ -209,19 +217,23 @@ def adjust_image_dims(images: List[Tensor], intrinsics: Tensor) -> Tuple[List[Te
         new_width = int(round(width / 8) * 8)
         intrinsics[:, i, 0] *= new_width / width
         intrinsics[:, i, 1] *= new_height / height
-        images[i] = nn.functional.interpolate(images[i], size=[new_height, new_width], mode='bilinear', align_corners=False)
+        images[i] = nn.functional.interpolate(
+            images[i], size=[new_height, new_width], mode='bilinear', align_corners=False)
 
     return images, intrinsics, ref_height, ref_width
 
 
-def patch_match_net_loss(depths: List[List[Tensor]], depth_gt: Tensor, mask: Tensor) -> Tuple[Tensor, List[Tensor], List[Tensor]]:
+def patch_match_net_loss(depths: List[List[Tensor]], depth_gt: Tensor, mask: Tensor) \
+        -> Tuple[Tensor, List[Tensor], List[Tensor]]:
     loss: Tensor = torch.zeros(1, device=mask.device)
     gt_depths: List[Tensor] = [torch.empty(0), torch.empty(0), torch.empty(0), torch.empty(0)]
     masks: List[Tensor] = [torch.empty(0), torch.empty(0), torch.empty(0), torch.empty(0)]
     for i in range(len(depths)):
         _, _, height, width = depths[i][0].size()
-        masks[i] = nn.functional.interpolate(mask.unsqueeze(1), size=[height, width], mode='bilinear', align_corners=False) > 0.5
-        gt_depths[i] = nn.functional.interpolate(depth_gt.unsqueeze(1), size=[height, width], mode='bilinear', align_corners=False)
+        masks[i] = nn.functional.interpolate(
+            mask.unsqueeze(1), size=[height, width], mode='bilinear', align_corners=False) > 0.5
+        gt_depths[i] = nn.functional.interpolate(
+            depth_gt.unsqueeze(1), size=[height, width], mode='bilinear', align_corners=False)
 
         for depth in depths[i]:
             loss += nn.functional.smooth_l1_loss(depth[masks[i]], gt_depths[i][masks[i]], reduction='mean')

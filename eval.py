@@ -34,7 +34,7 @@ def save_depth(args):
             missing, unexpected = model.load_state_dict(state_dict, strict=False)
         else:
             print('Non-parallel mode')
-            # For non data parallel mode we need to convert the state dictionary and remove the 'module.` prefix from the keys
+            # For non data parallel mode we need to convert the state dictionary and remove the 'module.` prefix
             new_dict: OrderedDict[str, Tensor] = {}
             for key in state_dict:
                 new_dict[key[7:]] = state_dict[key]
@@ -233,12 +233,8 @@ def filter_depth(args):
         save_image(os.path.join(args.output_folder, 'mask/{:0>8}_geo.png'.format(ref_view)), geo_mask)
         save_image(os.path.join(args.output_folder, 'mask/{:0>8}_final.png'.format(ref_view)), final_mask)
 
-        print(
-            'processing {}, ref-view{:0>3}, geo_mask:{:3f} photo_mask:{:3f} final_mask: {:3f}'.format(args.input_folder,
-                                                                                                      ref_view,
-                                                                                                      geo_mask.mean(),
-                                                                                                      photo_mask.mean(),
-                                                                                                      final_mask.mean()))
+        print('processing {}, ref-view{:0>3}, geo_mask:{:3f} photo_mask:{:3f} final_mask: {:3f}'.format(
+            args.input_folder, ref_view, geo_mask.mean(), photo_mask.mean(), final_mask.mean()))
 
         if args.display:
             cv2.imshow('ref_img', ref_img[:, :, ::-1])

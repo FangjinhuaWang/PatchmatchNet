@@ -25,7 +25,7 @@ class DepthInitialization(nn.Module):
             num_samples = 48
             # [B,num_depth,H,W]
             depth_sample = torch.rand((batch_size, num_samples, height, width), device=device, dtype=torch.float32) + \
-                           torch.arange(0, num_samples, 1, device=device, dtype=torch.float32).view(1, num_samples, 1, 1)
+                torch.arange(0, num_samples, 1, device=device, dtype=torch.float32).view(1, num_samples, 1, 1)
 
             return 1.0 / (inverse_max_depth + depth_sample / num_samples * (
                         inverse_min_depth - inverse_max_depth))
@@ -35,7 +35,8 @@ class DepthInitialization(nn.Module):
             # uniform samples in an inverse depth range
             return depth.detach()
         else:
-            depth_sample = torch.arange(-self.num_samples // 2, self.num_samples // 2, 1, device=device, dtype=torch.float32)
+            depth_sample = torch.arange(
+                -self.num_samples // 2, self.num_samples // 2, 1, device=device, dtype=torch.float32)
             depth_sample = depth_sample.view(1, self.num_samples, 1, 1).repeat(batch_size, 1, height, width)
             depth_sample = 1.0 / depth.detach() + (
                     inverse_min_depth - inverse_max_depth) * self.depth_interval_scale * depth_sample
@@ -66,7 +67,8 @@ class Evaluation(nn.Module):
         self.similarity_net = SimilarityNet(group_size)
 
     def forward(self, ref_feature: Tensor, src_features: List[Tensor], ref_proj: Tensor, src_projs: List[Tensor],
-                depth_sample: Tensor, grid: Tensor, weight: Tensor, view_weights: Tensor, is_inverse: bool) -> Tuple[Tensor, Tensor, Tensor]:
+                depth_sample: Tensor, grid: Tensor, weight: Tensor, view_weights: Tensor, is_inverse: bool) \
+            -> Tuple[Tensor, Tensor, Tensor]:
 
         device = ref_feature.device
         batch_size, num_channels, height, width = ref_feature.size()
@@ -74,9 +76,9 @@ class Evaluation(nn.Module):
         no_input_weights = is_empty(view_weights)
         view_weights_new = []
 
-        assert len(src_features) == len(src_projs), 'PatchMatch Evaluation: Different number of images and projection matrices'
+        assert len(src_features) == len(src_projs), 'PatchMatch Eval: Num images != num projection matrices'
         if not is_empty(view_weights):
-            assert len(src_features) == view_weights.size()[1], 'PatchMatch Evaluation: Different number of images and view weights'
+            assert len(src_features) == view_weights.size()[1], 'PatchMatch Eval: Num images != num weights'
 
         ref_feature = ref_feature.view(batch_size, self.group_size, num_channels // self.group_size, 1, height, width)
         weight_sum = torch.zeros((batch_size, 1, 1, height, width), dtype=torch.float32, device=device)
@@ -131,6 +133,7 @@ class Evaluation(nn.Module):
 
 
 class PatchMatch(nn.Module):
+    # noinspection PyTypeChecker
     def __init__(self, propagation_out_range: int, iterations: int, patch_match_num_sample: int,
                  patch_match_interval_scale: float, num_feature: int, group_size: int, propagate_neighbors: int,
                  evaluate_neighbors: int, stage: int):
@@ -162,7 +165,8 @@ class PatchMatch(nn.Module):
         self.feature_weight_net = FeatureWeightNet(self.evaluate_neighbors, group_size)
 
     # compute the offset for adaptive propagation
-    def get_grid(self, is_eval: bool, batch_size: int, height: int, width: int, offset: Tensor, device: torch.device) -> Tensor:
+    def get_grid(self, is_eval: bool, batch_size: int, height: int, width: int, offset: Tensor, device: torch.device) \
+            -> Tensor:
         # orig_offsets: List[List[int]] = []
         if is_eval:
             dilation = self.dilation - 1
@@ -229,7 +233,8 @@ class PatchMatch(nn.Module):
         return grid
 
     def forward(self, ref_feature: Tensor, src_features: List[Tensor], ref_proj: Tensor, src_projs: List[Tensor],
-                depth_min: float, depth_max: float, depth: Tensor, weights: Tensor, all_samples: bool = False) -> Tuple[Tensor, Tensor, Tensor, List[Tensor]]:
+                depth_min: float, depth_max: float, depth: Tensor, weights: Tensor, all_samples: bool = False) \
+            -> Tuple[Tensor, Tensor, Tensor, List[Tensor]]:
         score = torch.empty(0)
         samples: List[Tensor] = []
 
@@ -254,7 +259,7 @@ class PatchMatch(nn.Module):
         # patch-match iterations with local perturbation based on previous result
         for iteration in range(1, self.iterations + 1):
             # local perturbation based on previous result
-            depth = self.depth_initialization(batch_size, depth_min, depth_max, height, width, device,depth)
+            depth = self.depth_initialization(batch_size, depth_min, depth_max, height, width, device, depth)
 
             # adaptive propagation
             if self.propagate_neighbors > 0 and not (self.stage == 1 and iteration == self.iterations):
@@ -282,6 +287,7 @@ class PatchMatch(nn.Module):
 # first, do convolution on aggregated cost among all the source views
 # second, perform adaptive spatial cost aggregation to get final cost
 class SimilarityNet(nn.Module):
+    # noinspection PyTypeChecker
     def __init__(self, group_size: int):
         super(SimilarityNet, self).__init__()
 
@@ -309,6 +315,7 @@ class SimilarityNet(nn.Module):
 # adaptive spatial cost aggregation
 # weight based on similarity of features of sampling points and center pixel
 class FeatureWeightNet(nn.Module):
+    # noinspection PyTypeChecker
     def __init__(self, neighbors: int, group_size: int):
         super(FeatureWeightNet, self).__init__()
         self.neighbors = neighbors
@@ -325,7 +332,8 @@ class FeatureWeightNet(nn.Module):
         # grid: position of sampling points in adaptive spatial cost aggregation
         batch_size, num_channels, height, width = ref_feature.size()
 
-        weight = nn.functional.grid_sample(ref_feature, grid, mode='bilinear', padding_mode='border', align_corners=False)
+        weight = nn.functional.grid_sample(ref_feature, grid, mode='bilinear', padding_mode='border',
+                                           align_corners=False)
         weight = weight.view(batch_size, self.group_size, num_channels // self.group_size, self.neighbors, height,
                              width)
 
@@ -367,6 +375,7 @@ def depth_weight(depth_sample: Tensor, depth_min: float, depth_max: float, grid:
 
 # estimate pixel-wise view weight
 class PixelwiseNet(nn.Module):
+    # noinspection PyTypeChecker
     def __init__(self, group_size: int):
         super(PixelwiseNet, self).__init__()
         self.conv0 = ConvBnReLU3D(group_size, 16, 1, 1, 0)

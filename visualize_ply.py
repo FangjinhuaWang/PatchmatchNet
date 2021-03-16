@@ -10,7 +10,8 @@ if __name__ == '__main__':
     parser.add_argument('--log_dir', type=str, required=True, help='the scan to visualize')
     parser.add_argument('--scan', type=str, required=True, help='the scan to visualize')
     parser.add_argument('--dataset', type=str, default='dtu', help='identify dataset')
-    parser.add_argument('--use_viewpoint', type=bool, default=False, action='store_true', help='use precalculated viewpoint')
+    parser.add_argument('--use_viewpoint', type=bool, default=False, action='store_true',
+                        help='use precalculated viewpoint')
     parser.add_argument('--save_viewpoint', type=bool, default=False, action='store_true', help='save this viewpoint')
 
     args = parser.parse_args()

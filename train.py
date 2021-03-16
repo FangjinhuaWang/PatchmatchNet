@@ -15,8 +15,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 from datasets.mvs import MVSDataset
 from models import PatchMatchNet, patch_match_net_loss
-from utils import DictAverageMeter, abs_depth_error_metrics, make_no_grad_func, print_args, save_images, save_scalars, tensor2float, \
-    tensor2numpy, threshold_metrics, to_cuda
+from utils import DictAverageMeter, abs_depth_error_metrics, make_no_grad_func, print_args, save_images, save_scalars, \
+    tensor2float, tensor2numpy, threshold_metrics, to_cuda
 
 
 # main function
@@ -68,7 +68,8 @@ def test(model: PatchMatchNet, image_loader: DataLoader):
         start_time = time.time()
         loss, scalar_outputs, _ = test_sample(model, sample)
         avg_test_scalars.update(scalar_outputs)
-        print('Iter {}/{}, test loss = {:.3f}, time = {:3f}'.format(batch_idx + 1, num_images, loss, time.time() - start_time))
+        print('Iter {}/{}, test loss = {:.3f}, time = {:3f}'.format(
+            batch_idx + 1, num_images, loss, time.time() - start_time))
         if (batch_idx + 1) % 100 == 0:
             print('Iter {}/{}, test results = {}'.format(batch_idx + 1, num_images, avg_test_scalars.mean()))
     print('final', avg_test_scalars.mean())
@@ -97,9 +98,8 @@ def process_samples(args, logger: SummaryWriter, model: PatchMatchNet, image_loa
             save_images(logger, tag, image_outputs, global_step)
 
         avg_test_scalars.update(scalar_outputs)
-        print(
-            'Epoch {}/{}, Iter {}/{}, {} loss = {:.3f}, time = {:.3f}'.format(epoch_idx + 1, args.epochs, batch_idx + 1,
-                                                                              num_images, tag, loss, time.time() - start_time))
+        print('Epoch {}/{}, Iter {}/{}, {} loss = {:.3f}, time = {:.3f}'.format(
+            epoch_idx + 1, args.epochs, batch_idx + 1, num_images, tag, loss, time.time() - start_time))
     if not is_training:
         save_scalars(logger, 'full_test', avg_test_scalars.mean(), global_step)
         print('avg_test_scalars:', avg_test_scalars.mean())
@@ -128,7 +128,8 @@ def process_sample(model: PatchMatchNet, sample: Dict, is_training: bool = True,
     depth_gt = sample_cuda['depth_gt']
     mask = sample_cuda['mask']
 
-    _, _, depths = model.forward(sample_cuda['images'], sample_cuda['intrinsics'], sample_cuda['extrinsics'], sample_cuda['depth_params'])
+    _, _, depths = model.forward(
+        sample_cuda['images'], sample_cuda['intrinsics'], sample_cuda['extrinsics'], sample_cuda['depth_params'])
 
     loss, gt_depths, masks = patch_match_net_loss(depths, depth_gt, mask)
 
@@ -214,8 +215,6 @@ if __name__ == '__main__':
 
     # parse arguments and check
     input_args = parser.parse_args()
-    # args.input_folder = r'C:\Users\anmatako\Downloads\datasets\dtu_train\scan1'
-    # args.output_folder = r'C:\Users\anmatako\Downloads\test_outputs\dtu_train'
 
     print('argv:', sys.argv[1:])
     print_args(input_args)
@@ -241,19 +240,20 @@ if __name__ == '__main__':
         image_folder = 'blended_images'
         depth_folder = 'rendered_depth_maps'
 
-    train_dataset = MVSDataset(input_args.input_folder, input_args.num_views, input_args.image_max_dim, input_args.train_list, True,
-                               num_light_idx,
-                               cam_folder, pair_path, image_folder, depth_folder, index_path)
-    test_dataset = MVSDataset(input_args.input_folder, input_args.num_views, input_args.image_max_dim, input_args.test_list, False,
-                              num_light_idx,
-                              cam_folder, pair_path, image_folder, depth_folder, index_path)
+    train_dataset = MVSDataset(input_args.input_folder, input_args.num_views, input_args.image_max_dim,
+                               input_args.train_list, True, num_light_idx, cam_folder, pair_path, image_folder,
+                               depth_folder, index_path)
+    test_dataset = MVSDataset(input_args.input_folder, input_args.num_views, input_args.image_max_dim,
+                              input_args.test_list, False, num_light_idx, cam_folder, pair_path, image_folder,
+                              depth_folder, index_path)
 
     train_loader = DataLoader(train_dataset, input_args.batch_size, shuffle=True, num_workers=8, drop_last=True)
     test_loader = DataLoader(test_dataset, input_args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 
     # model, optimizer
-    pmnet_model = PatchMatchNet(input_args.patch_match_interval_scale, input_args.propagation_range, input_args.patch_match_iteration,
-                                input_args.patch_match_num_sample, input_args.propagate_neighbors, input_args.evaluate_neighbors, True)
+    pmnet_model = PatchMatchNet(input_args.patch_match_interval_scale, input_args.propagation_range,
+                                input_args.patch_match_iteration, input_args.patch_match_num_sample,
+                                input_args.propagate_neighbors, input_args.evaluate_neighbors, True)
 
     if input_args.data_parallel:
         pmnet_model = torch.nn.DataParallel(pmnet_model)

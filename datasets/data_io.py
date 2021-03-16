@@ -31,7 +31,7 @@ def read_image(filename: str, max_dim: int = -1) -> Tuple[np.ndarray, int, int]:
 
 # Save images including binary mask (bool), float (0<= val <= 1), or int (as-is)
 def save_image(filename: str, image: np.ndarray):
-    if image.dtype == np.bool:
+    if image.dtype == bool:
         image = image.astype(np.uint8) * 255
     elif image.dtype == np.float32 or image.dtype == np.float64:
         image = image * 255
@@ -45,7 +45,7 @@ def read_image_dictionary(filename: str) -> Dict[int, str]:
     image_dict: Dict[int, str] = {}
     with open(filename) as f:
         num_entries = int(f.readline().strip())
-        for i in range(num_entries):
+        for _ in range(num_entries):
             parts = f.readline().strip().split(' ')
             image_dict[int(parts[0].strip())] = parts[1].strip()
     return image_dict
@@ -73,7 +73,7 @@ def read_pair_file(filename: str) -> List[Tuple[int, List[int]]]:
     data = []
     with open(filename) as f:
         num_viewpoint = int(f.readline())
-        for view_idx in range(num_viewpoint):
+        for _ in range(num_viewpoint):
             ref_view = int(f.readline().rstrip())
             src_views = [int(x) for x in f.readline().rstrip().split()[1::2]]
             if len(src_views) != 0:

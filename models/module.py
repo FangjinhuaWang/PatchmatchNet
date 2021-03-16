@@ -5,6 +5,7 @@ import torch.nn.functional
 from torch import Tensor
 
 
+# noinspection PyTypeChecker
 class ConvBnReLU(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, pad: int = 1,
                  dilation: int = 1):
@@ -17,6 +18,7 @@ class ConvBnReLU(nn.Module):
         return nn.functional.relu(self.bn(self.conv(x)), inplace=True)
 
 
+# noinspection PyTypeChecker
 class ConvBnReLU3D(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, pad: int = 1,
                  dilation: int = 1):
@@ -29,6 +31,7 @@ class ConvBnReLU3D(nn.Module):
         return nn.functional.relu(self.bn(self.conv(x)), inplace=True)
 
 
+# noinspection PyTypeChecker
 class ConvBnReLU1D(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, pad: int = 1,
                  dilation: int = 1):
@@ -41,6 +44,7 @@ class ConvBnReLU1D(nn.Module):
         return nn.functional.relu(self.bn(self.conv(x)), inplace=True)
 
 
+# noinspection PyTypeChecker
 class ConvBn(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, pad: int = 1):
         super(ConvBn, self).__init__()
@@ -68,10 +72,10 @@ def differentiable_warping(src_fea: Tensor, src_proj: Tensor, ref_proj: Tensor, 
         y, x = torch.meshgrid([torch.arange(0, height, dtype=torch.float32, device=src_fea.device),
                                torch.arange(0, width, dtype=torch.float32, device=src_fea.device)])
         y, x = y.contiguous().view(height * width), x.contiguous().view(height * width)
-        xyz = torch.stack((x, y, torch.ones_like(x, dtype=torch.float32))).unsqueeze(0).repeat(batch, 1, 1)  # [B, 3, H*W]
+        xyz = torch.stack((x, y, torch.ones_like(x, dtype=torch.float32))).unsqueeze(0).repeat(batch, 1, 1)  # [B,3,H*W]
         xyz = torch.matmul(rot, xyz).unsqueeze(2).repeat(1, 1, num_depth, 1)  # [B, 3, H*W]
 
-        xyz = xyz * depth_samples.view(batch, 1, num_depth, height * width) + trans.view(batch, 3, 1, 1)  # [B, 3, num_depth, H*W]
+        xyz = xyz * depth_samples.view(batch, 1, num_depth, height * width) + trans.view(batch, 3, 1, 1)  # [B,3,D,H*W]
 
         # avoid negative depth
         negative_depth_mask = xyz[:, 2:] <= 1e-3
@@ -83,8 +87,9 @@ def differentiable_warping(src_fea: Tensor, src_proj: Tensor, ref_proj: Tensor, 
         proj_y_normalized = proj_xy[:, 1, :, :] / ((height - 1) / 2) - 1
         proj_xy = torch.stack((proj_x_normalized, proj_y_normalized), dim=3)  # [B, num_depth, H*W, 2]
 
-    return nn.functional.grid_sample(src_fea, proj_xy.view(batch, num_depth * height, width, 2), mode='bilinear',
-                                     padding_mode='zeros', align_corners=False).view(batch, channels, num_depth, height, width)
+    return nn.functional.grid_sample(
+        src_fea, proj_xy.view(batch, num_depth * height, width, 2), mode='bilinear', padding_mode='zeros',
+        align_corners=False).view(batch, channels, num_depth, height, width)
 
 
 def is_empty(x: Tensor) -> bool:

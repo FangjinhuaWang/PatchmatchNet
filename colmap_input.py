@@ -318,7 +318,8 @@ if __name__ == '__main__':
         for p3d_id in images[im_idx].point3d_ids:
             if p3d_id == -1:
                 continue
-            transformed: np.ndarray = np.matmul(extrinsic[im_idx], [points3d[p3d_id].xyz[0], points3d[p3d_id].xyz[1], points3d[p3d_id].xyz[2], 1])
+            transformed: np.ndarray = np.matmul(
+                extrinsic[im_idx], [points3d[p3d_id].xyz[0], points3d[p3d_id].xyz[1], points3d[p3d_id].xyz[2], 1])
             zs.append(transformed[2].item())
         zs_sorted = sorted(zs)
         # relaxed depth range

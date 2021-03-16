@@ -10,8 +10,9 @@ from datasets.data_io import read_cam_file, read_image, read_image_dictionary, r
 
 class MVSDataset(Dataset):
     def __init__(self, data_path: str, num_views: int = 10, max_dim: int = -1, scan_list: str = '',
-                 robust_train: bool = False, num_light_idx: int = -1, cam_folder: str = 'cams', pair_path: str = 'pair.txt',
-                 image_folder: str = 'images', depth_folder: str = 'depth_gt', index_path: str = None):
+                 robust_train: bool = False, num_light_idx: int = -1, cam_folder: str = 'cams',
+                 pair_path: str = 'pair.txt', image_folder: str = 'images', depth_folder: str = 'depth_gt',
+                 index_path: str = None):
         super(MVSDataset, self).__init__()
 
         self.data_path = data_path
@@ -71,7 +72,8 @@ class MVSDataset(Dataset):
             if self.has_index:
                 img_filename = os.path.join(self.data_path, scan, self.image_folder, self.image_index[view_id])
             else:
-                img_filename = os.path.join(self.data_path, scan, self.image_folder, prefix, '{:0>8}.jpg'.format(view_id))
+                img_filename = os.path.join(
+                    self.data_path, scan, self.image_folder, prefix, '{:0>8}.jpg'.format(view_id))
 
             image, original_h, original_w = read_image(img_filename, self.max_dim)
             images.append(image.transpose([2, 0, 1]))
@@ -90,7 +92,8 @@ class MVSDataset(Dataset):
                     depth_gt_filename = os.path.join(self.data_path, scan, self.depth_folder, self.image_index[view_id])
                     depth_gt_filename = os.path.splitext(depth_gt_filename.replace('_undistorted', ''))[0] + '.pfm'
                 else:
-                    depth_gt_filename = os.path.join(self.data_path, scan, self.depth_folder, '{:0>8}.pfm'.format(view_id))
+                    depth_gt_filename = os.path.join(
+                        self.data_path, scan, self.depth_folder, '{:0>8}.pfm'.format(view_id))
 
                 if os.path.isfile(depth_gt_filename):
                     depth_gt = read_map(depth_gt_filename, self.max_dim)

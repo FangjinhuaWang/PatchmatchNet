@@ -39,8 +39,10 @@ def copy_maps(input_path: str, output_path: str):
     shutil.copytree(os.path.join(input_path, 'images'), os.path.join(output_path, 'images'), dirs_exist_ok=True)
     output_type = os.path.splitext(os.listdir(os.path.join(input_path, 'depth_est'))[0])[1]
     if output_type == '.bin':
-        shutil.copytree(os.path.join(input_path, 'depth_est'), os.path.join(output_path, 'stereo/depth_maps'), dirs_exist_ok=True)
-        shutil.copytree(os.path.join(input_path, 'confidence'), os.path.join(output_path, 'stereo/confidence_maps'), dirs_exist_ok=True)
+        shutil.copytree(os.path.join(input_path, 'depth_est'), os.path.join(output_path, 'stereo/depth_maps'),
+                        dirs_exist_ok=True)
+        shutil.copytree(os.path.join(input_path, 'confidence'), os.path.join(output_path, 'stereo/confidence_maps'),
+                        dirs_exist_ok=True)
     else:
         # If output is .pfm we need to read and convert to colmap .bin
         for map_file in os.listdir(os.path.join(input_path, 'depth_est')):
