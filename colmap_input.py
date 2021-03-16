@@ -335,7 +335,7 @@ if __name__ == '__main__':
         id_intersect = [it for it in id_i if it in id_j]
         cam_center_i = -np.matmul(extrinsic[i][:3, :3].transpose(), extrinsic[i][:3, 3:4])[:, 0]
         cam_center_j = -np.matmul(extrinsic[j][:3, :3].transpose(), extrinsic[j][:3, 3:4])[:, 0]
-        view_score = 0.0
+        view_score_ = 0.0
         for pid in id_intersect:
             if pid == -1:
                 continue
@@ -343,9 +343,9 @@ if __name__ == '__main__':
             theta = (180 / np.pi) * np.arccos(
                 np.dot(cam_center_i - p, cam_center_j - p) / np.linalg.norm(cam_center_i - p) / np.linalg.norm(
                     cam_center_j - p))
-            view_score += np.exp(-(theta - args.theta0) * (theta - args.theta0) / (
+            view_score_ += np.exp(-(theta - args.theta0) * (theta - args.theta0) / (
                     2 * (args.sigma1 if theta <= args.theta0 else args.sigma2) ** 2))
-        return view_score
+        return view_score_
 
 
     # view selection

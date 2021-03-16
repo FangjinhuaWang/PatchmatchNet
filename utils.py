@@ -3,7 +3,8 @@ import torch
 import torchvision.utils
 
 from torch import Tensor
-
+from torch.utils.tensorboard import SummaryWriter
+from typing import Dict
 
 # print arguments
 def print_args(args):
@@ -68,21 +69,15 @@ def to_cuda(args):
         raise NotImplementedError('invalid input type {} for to_cuda'.format(type(args)))
 
 
-def save_scalars(logger, mode, scalar_dict, global_step):
-    scalar_dict = tensor2float(scalar_dict)
-    for key, value in scalar_dict.items():
-        if not isinstance(value, (list, tuple)):
-            name = '{}/{}'.format(mode, key)
-            logger.add_scalar(name, value, global_step)
-        else:
-            for idx in range(len(value)):
-                name = '{}/{}_{}'.format(mode, key, idx)
-                logger.add_scalar(name, value[idx], global_step)
+def save_scalars(logger: SummaryWriter, mode: str, scalars: Dict[str, float], global_step: int):
+    for key, value in scalars.items():
+        if not isinstance(value, float):
+            raise NotImplementedError('invalid data {}: {}'.format(key, type(value)))
+        name = '{}/{}'.format(mode, key)
+        logger.add_scalar(name, value, global_step)
 
 
-def save_images(logger, mode, images_dict, global_step):
-    images_dict = tensor2numpy(images_dict)
-
+def save_images(logger: SummaryWriter, mode: str, images: Dict[str, np.ndarray], global_step: int):
     def preprocess(img_name, img):
         if not (len(img.shape) == 3 or len(img.shape) == 4):
             raise NotImplementedError('invalid img shape {}:{} in save_images'.format(img_name, img.shape))
@@ -91,14 +86,11 @@ def save_images(logger, mode, images_dict, global_step):
         img = torch.from_numpy(img[:1])
         return torchvision.utils.make_grid(img, padding=0, nrow=1, normalize=True, scale_each=True)
 
-    for key, value in images_dict.items():
-        if not isinstance(value, (list, tuple)):
-            name = '{}/{}'.format(mode, key)
-            logger.add_image(name, preprocess(name, value), global_step)
-        else:
-            for idx in range(len(value)):
-                name = '{}/{}_{}'.format(mode, key, idx)
-                logger.add_image(name, preprocess(name, value[idx]), global_step)
+    for key, value in images.items():
+        if not isinstance(value, np.ndarray):
+            raise NotImplementedError('invalid data {}: {}'.format(key, type(value)))
+        name = '{}/{}'.format(mode, key)
+        logger.add_image(name, preprocess(name, value), global_step)
 
 
 class DictAverageMeter(object):
@@ -106,7 +98,7 @@ class DictAverageMeter(object):
         self.data = {}
         self.count = 0
 
-    def update(self, new_input):
+    def update(self, new_input: Dict[str, float]):
         self.count += 1
         if len(self.data) == 0:
             for key, value in new_input.items():
@@ -119,7 +111,7 @@ class DictAverageMeter(object):
                     raise NotImplementedError('invalid data {}: {}'.format(key, type(value)))
                 self.data[key] += value
 
-    def mean(self):
+    def mean(self) -> Dict[str, float]:
         return {k: v / self.count for k, v in self.data.items()}
 
 

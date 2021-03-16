@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional
 
-from .module import ConvBnReLU
-from .patchmatch import PatchMatch
+from models.module import ConvBnReLU
+from models.patchmatch import PatchMatch
 from torch import Tensor
 from typing import List, Tuple
 

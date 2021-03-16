@@ -17,56 +17,9 @@ from torch.utils.data import DataLoader
 from typing import Dict
 from utils import print_args, tensor2numpy, to_cuda
 
-torch.backends.cudnn.benchmark = True
-
-parser = argparse.ArgumentParser(description='Predict depth, filter, and fuse')
-
-# High level input/output options
-parser.add_argument('--input_folder', type=str, help='input data path')
-parser.add_argument('--output_folder', type=str, help='output path')
-parser.add_argument('--checkpoint_path', type=str, help='load a specific checkpoint for parameters of model')
-parser.add_argument('--file_format', type=str, default='.bin', help='File format for depth maps', choices=['.bin', '.pfm'])
-parser.add_argument('--input_type', type=str, default='params', help='Input type of checkpoint', choices=['params', 'module'])
-parser.add_argument('--output_type', type=str, default='both', help='Type of outputs to produce', choices=['depth', 'fusion', 'both'])
-parser.add_argument('--data_parallel', type=bool, default=False, help='Flag to use or skip data parallel mode')
-
-# Dataset loading options
-parser.add_argument('--dataset_type', type=str, default='custom', help='Type of dataset to configure parameters',
-                    choices=['custom', 'dtu', 'eth3d', 'blended'])
-parser.add_argument('--num_views', type=int, default=21, help='total views for each patch-match problem including reference')
-parser.add_argument('--image_max_dim', type=int, default=1024, help='max image dimension')
-parser.add_argument('--scan_list', type=str, default='', help='Optional scan list text file to identify input folders')
-parser.add_argument('--batch_size', type=int, default=1, help='evaluation batch size')
-
-# PatchMatchNet module options (only used when not loading from file)
-parser.add_argument('--patch_match_interval_scale', nargs='+', type=float, default=[0.005, 0.0125, 0.025],
-                    help='normalized interval in inverse depth range to generate samples in local perturbation')
-parser.add_argument('--propagation_range', nargs='+', type=int, default=[6, 4, 2],
-                    help='fixed offset of sampling points for propagation of patch match on stages 1,2,3')
-parser.add_argument('--patch_match_iteration', nargs='+', type=int, default=[1, 2, 2],
-                    help='num of iteration of patch match on stages 1,2,3')
-parser.add_argument('--patch_match_num_sample', nargs='+', type=int, default=[8, 8, 16],
-                    help='num of generated samples in local perturbation on stages 1,2,3')
-parser.add_argument('--propagate_neighbors', nargs='+', type=int, default=[0, 8, 16],
-                    help='num of neighbors for adaptive propagation on stages 1,2,3')
-parser.add_argument('--evaluate_neighbors', nargs='+', type=int, default=[9, 9, 9],
-                    help='num of neighbors for adaptive matching cost aggregation of adaptive evaluation on stages 1,2,3')
-
-# Stereo fusion options
-parser.add_argument('--display', action='store_true', help='display depth images and masks')
-parser.add_argument('--geom_pixel_threshold', type=float, default=1.0, help='pixel threshold for geometric consistency filtering')
-parser.add_argument('--geom_depth_threshold', type=float, default=0.01, help='depth threshold for geometric consistency filtering')
-parser.add_argument('--geom_threshold', type=int, default=5, help='threshold for geometric consistency filtering')
-parser.add_argument('--photo_threshold', type=float, default=0.5, help='threshold for photometric consistency filtering')
-
-# parse arguments and check
-args = parser.parse_args()
-print('argv:', sys.argv[1:])
-print_args(args)
-
 
 # run MVS model to save depth maps
-def save_depth():
+def save_depth(args):
     if args.input_type == 'params':
         print('Evaluating model with params from {}'.format(args.checkpoint_path))
         model = PatchMatchNet(args.patch_match_interval_scale, args.propagation_range, args.patch_match_iteration,
@@ -209,13 +162,13 @@ def check_geometric_consistency(depth_ref, intrinsics_ref, extrinsics_ref, depth
     depth_diff = np.abs(depth_reprojected - depth_ref)
     relative_depth_diff = depth_diff / depth_ref
 
-    mask = np.logical_and(dist < args.geom_pixel_threshold, relative_depth_diff < args.geom_depth_threshold)
+    mask = np.logical_and(dist < input_args.geom_pixel_threshold, relative_depth_diff < input_args.geom_depth_threshold)
     depth_reprojected[~mask] = 0
 
     return mask, depth_reprojected, x2d_src, y2d_src
 
 
-def filter_depth():
+def filter_depth(args):
     # the pair file
     pair_file = os.path.join(args.input_folder, 'pair.txt')
     # for the final point cloud
@@ -327,10 +280,65 @@ def filter_depth():
 
 
 if __name__ == '__main__':
+    torch.backends.cudnn.benchmark = True
+
+    parser = argparse.ArgumentParser(description='Predict depth, filter, and fuse')
+
+    # High level input/output options
+    parser.add_argument('--input_folder', type=str, help='input data path')
+    parser.add_argument('--output_folder', type=str, help='output path')
+    parser.add_argument('--checkpoint_path', type=str, help='load a specific checkpoint for parameters of model')
+    parser.add_argument('--file_format', type=str, default='.bin', help='File format for depth maps',
+                        choices=['.bin', '.pfm'])
+    parser.add_argument('--input_type', type=str, default='params', help='Input type of checkpoint',
+                        choices=['params', 'module'])
+    parser.add_argument('--output_type', type=str, default='both', help='Type of outputs to produce',
+                        choices=['depth', 'fusion', 'both'])
+    parser.add_argument('--data_parallel', type=bool, default=False, help='Flag to use or skip data parallel mode')
+
+    # Dataset loading options
+    parser.add_argument('--dataset_type', type=str, default='custom', help='Type of dataset to configure parameters',
+                        choices=['custom', 'dtu', 'eth3d', 'blended'])
+    parser.add_argument('--num_views', type=int, default=21,
+                        help='total views for each patch-match problem including reference')
+    parser.add_argument('--image_max_dim', type=int, default=1024, help='max image dimension')
+    parser.add_argument('--scan_list', type=str, default='',
+                        help='Optional scan list text file to identify input folders')
+    parser.add_argument('--batch_size', type=int, default=1, help='evaluation batch size')
+
+    # PatchMatchNet module options (only used when not loading from file)
+    parser.add_argument('--patch_match_interval_scale', nargs='+', type=float, default=[0.005, 0.0125, 0.025],
+                        help='normalized interval in inverse depth range to generate samples in local perturbation')
+    parser.add_argument('--propagation_range', nargs='+', type=int, default=[6, 4, 2],
+                        help='fixed offset of sampling points for propagation of patch match on stages 1,2,3')
+    parser.add_argument('--patch_match_iteration', nargs='+', type=int, default=[1, 2, 2],
+                        help='num of iteration of patch match on stages 1,2,3')
+    parser.add_argument('--patch_match_num_sample', nargs='+', type=int, default=[8, 8, 16],
+                        help='num of generated samples in local perturbation on stages 1,2,3')
+    parser.add_argument('--propagate_neighbors', nargs='+', type=int, default=[0, 8, 16],
+                        help='num of neighbors for adaptive propagation on stages 1,2,3')
+    parser.add_argument('--evaluate_neighbors', nargs='+', type=int, default=[9, 9, 9],
+                        help='num of neighbors for adaptive matching cost aggregation of adaptive evaluation on stages 1,2,3')
+
+    # Stereo fusion options
+    parser.add_argument('--display', action='store_true', help='display depth images and masks')
+    parser.add_argument('--geom_pixel_threshold', type=float, default=1.0,
+                        help='pixel threshold for geometric consistency filtering')
+    parser.add_argument('--geom_depth_threshold', type=float, default=0.01,
+                        help='depth threshold for geometric consistency filtering')
+    parser.add_argument('--geom_threshold', type=int, default=5, help='threshold for geometric consistency filtering')
+    parser.add_argument('--photo_threshold', type=float, default=0.5,
+                        help='threshold for photometric consistency filtering')
+
+    # parse arguments and check
+    input_args = parser.parse_args()
+    print('argv:', sys.argv[1:])
+    print_args(input_args)
+
     # step1. save all the depth maps and the masks in outputs directory
-    if args.output_type == 'depth' or args.output_type == 'both':
-        save_depth()
+    if input_args.output_type == 'depth' or input_args.output_type == 'both':
+        save_depth(input_args)
 
     # step2. filter saved depth maps and reconstruct point cloud
-    if args.output_type == 'fusion' or args.output_type == 'both':
-        filter_depth()
+    if input_args.output_type == 'fusion' or input_args.output_type == 'both':
+        filter_depth(input_args)

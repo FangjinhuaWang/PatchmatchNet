@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional
 
-from .module import ConvBnReLU3D, is_empty, differentiable_warping
+from models.module import ConvBnReLU3D, is_empty, differentiable_warping
 from torch import Tensor
 from typing import List, Tuple
 
@@ -228,7 +228,7 @@ class PatchMatch(nn.Module):
         return grid
 
     def forward(self, ref_feature: Tensor, src_features: List[Tensor], ref_proj: Tensor, src_projs: List[Tensor],
-                depth_min: float, depth_max: float, depth: Tensor, weights: Tensor, all_samples=False) -> Tuple[Tensor, Tensor, Tensor, List[Tensor]]:
+                depth_min: float, depth_max: float, depth: Tensor, weights: Tensor, all_samples: bool = False) -> Tuple[Tensor, Tensor, Tensor, List[Tensor]]:
         score = torch.empty(0)
         samples: List[Tensor] = []
 
