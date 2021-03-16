@@ -1,12 +1,13 @@
 import argparse
-import numpy as np
 import os
 import shutil
+from typing import Dict, List, Tuple
+
+import numpy as np
+from PIL import Image as PilImage
 
 from colmap_input import Camera, Image
 from datasets.data_io import read_cam_file, read_map, read_pair_file, save_map
-from typing import Dict, List, Tuple
-from PIL import Image as PilImage
 
 
 def rotation_matrix_to_quaternion(rot: np.ndarray) -> List[float]:

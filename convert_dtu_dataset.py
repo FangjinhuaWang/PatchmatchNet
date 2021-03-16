@@ -2,9 +2,9 @@ import argparse
 import os
 import shutil
 
-from datasets.data_io import read_map, read_image, save_map, save_image
 from PIL import Image
 
+from datasets.data_io import read_image, read_map, save_image, save_map
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert training dataset to standard input format')

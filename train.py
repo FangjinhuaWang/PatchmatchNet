@@ -3,19 +3,20 @@ import datetime
 import os
 import sys
 import time
+from typing import Dict, Tuple
+
 import torch.backends.cudnn
 import torch.nn.parallel
-
-from datasets.mvs import MVSDataset
-from models import PatchMatchNet, patch_match_net_loss
 from numpy import ndarray
 from torch import Tensor
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from typing import Dict, Tuple
-from utils import DictAverageMeter, abs_depth_error_metrics, make_no_grad_func, print_args, save_scalars, save_images,\
-    tensor2float, tensor2numpy, to_cuda, threshold_metrics
+
+from datasets.mvs import MVSDataset
+from models import PatchMatchNet, patch_match_net_loss
+from utils import DictAverageMeter, abs_depth_error_metrics, make_no_grad_func, print_args, save_images, save_scalars, tensor2float, \
+    tensor2numpy, threshold_metrics, to_cuda
 
 
 # main function

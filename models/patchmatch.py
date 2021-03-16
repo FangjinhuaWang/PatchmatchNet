@@ -1,10 +1,11 @@
+from typing import List, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional
-
-from models.module import ConvBnReLU3D, is_empty, differentiable_warping
 from torch import Tensor
-from typing import List, Tuple
+
+from models.module import ConvBnReLU3D, differentiable_warping, is_empty
 
 
 class DepthInitialization(nn.Module):

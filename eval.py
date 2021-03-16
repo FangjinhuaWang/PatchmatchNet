@@ -1,20 +1,21 @@
 import argparse
-import cv2
-import numpy as np
 import os
 import sys
 import time
+from typing import OrderedDict
+
+import cv2
+import numpy as np
 import torch.backends.cudnn
 import torch.nn as nn
 import torch.nn.parallel
-
-from datasets.mvs import MVSDataset
-from datasets.data_io import read_cam_file, read_image, read_map, read_pair_file, save_map, save_image
-from models.net import PatchMatchNet
 from plyfile import PlyData, PlyElement
 from torch import Tensor
 from torch.utils.data import DataLoader
-from typing import Dict
+
+from datasets.data_io import read_cam_file, read_image, read_map, read_pair_file, save_image, save_map
+from datasets.mvs import MVSDataset
+from models.net import PatchMatchNet
 from utils import print_args, tensor2numpy, to_cuda
 
 
@@ -34,7 +35,7 @@ def save_depth(args):
         else:
             print('Non-parallel mode')
             # For non data parallel mode we need to convert the state dictionary and remove the 'module.` prefix from the keys
-            new_dict: Dict[str, Tensor] = {}
+            new_dict: OrderedDict[str, Tensor] = {}
             for key in state_dict:
                 new_dict[key[7:]] = state_dict[key]
             missing, unexpected = model.load_state_dict(new_dict, strict=False)

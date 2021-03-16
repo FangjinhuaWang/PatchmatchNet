@@ -1,11 +1,11 @@
 import argparse
-import cv2
-import numpy as np
 import os
 import shutil
 import struct
-
 from typing import Dict, List, NamedTuple, Tuple
+
+import cv2
+import numpy as np
 
 
 # ============================ read_model.py ============================#

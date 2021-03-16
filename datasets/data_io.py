@@ -1,11 +1,11 @@
+import re
+import struct
+import sys
+from typing import Dict, List, Tuple
+
 import cv2
 import numpy as np
-import re
-import sys
-import struct
-
 from PIL import Image
-from typing import List, Tuple, Dict
 
 
 # Scale image to specific max size

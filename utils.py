@@ -1,10 +1,11 @@
+from typing import Dict
+
 import numpy as np
 import torch
 import torchvision.utils
-
 from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
-from typing import Dict
+
 
 # print arguments
 def print_args(args):
@@ -43,7 +44,7 @@ def make_recursive_func(func):
 def tensor2float(args):
     if isinstance(args, float):
         return args
-    elif isinstance(args, torch.Tensor):
+    elif isinstance(args, Tensor):
         return args.data.item()
     else:
         raise NotImplementedError('invalid input type {} for tensor2float'.format(type(args)))
@@ -53,7 +54,7 @@ def tensor2float(args):
 def tensor2numpy(args):
     if isinstance(args, np.ndarray):
         return args
-    elif isinstance(args, torch.Tensor):
+    elif isinstance(args, Tensor):
         return args.detach().cpu().numpy().copy()
     else:
         raise NotImplementedError('invalid input type {} for tensor2numpy'.format(type(args)))
@@ -61,7 +62,7 @@ def tensor2numpy(args):
 
 @make_recursive_func
 def to_cuda(args):
-    if isinstance(args, torch.Tensor):
+    if isinstance(args, Tensor):
         return args.cuda()
     elif isinstance(args, str):
         return args
