@@ -70,7 +70,15 @@ def read_reconstruction(path: str) -> Tuple[List[Camera], List[Image], List[Tupl
     return cameras, images, read_pair_file(os.path.join(path, 'pair.txt'))
 
 
-def write_config(path: str, images: List[Image], pairs: List[Tuple[int, List[int]]]):
+def write_patch_match_config(path: str, images: List[Image], pairs: List[Tuple[int, List[int]]]):
+    image_names: Dict[int, str] = {image.id: image.name for image in images}
+    with open(path, 'w') as f:
+        for ref_id, src_ids in pairs:
+            f.write(image_names[ref_id] + '\n')
+            f.write(', '.join([image_names[src_id] for src_id in src_ids]) + '\n')
+
+
+def write_fusion_config(path: str, images: List[Image], pairs: List[Tuple[int, List[int]]]):
     image_names: Dict[int, str] = {image.id: image.name for image in images}
     with open(path, 'w') as f:
         f.writelines([','.join([image_names[view_id] for view_id in [pair[0]] + pair[1]]) + '\n' for pair in pairs])
@@ -127,5 +135,6 @@ if __name__ == '__main__':
     create_output_dirs(args.output_folder)
     copy_maps(args.input_folder, args.output_folder)
     cams, ims, im_pairs = read_reconstruction(args.input_folder)
-    write_config(os.path.join(args.output_folder, 'stereo/fusion.cfg'), ims, im_pairs)
+    write_patch_match_config(os.path.join(args.output_folder, 'stereo/patch-match.cfg'), ims, im_pairs)
+    write_fusion_config(os.path.join(args.output_folder, 'stereo/fusion.cfg'), ims, im_pairs)
     write_sparse(os.path.join(args.output_folder, 'sparse'), cams, ims)
