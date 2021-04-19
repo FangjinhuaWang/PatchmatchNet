@@ -12,7 +12,7 @@ from PIL import Image
 def scale_to_max_dim(image: np.ndarray, max_dim: int) -> Tuple[np.ndarray, int, int]:
     original_height = image.shape[0]
     original_width = image.shape[1]
-    scale = max_dim / max(image.shape)
+    scale = max_dim / max(original_height, original_width)
     if 0 < scale < 1:
         width = int(scale * original_width)
         height = int(scale * original_height)

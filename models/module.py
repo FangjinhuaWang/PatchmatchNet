@@ -92,5 +92,28 @@ def differentiable_warping(src_fea: Tensor, src_proj: Tensor, ref_proj: Tensor, 
         align_corners=False).view(batch, channels, num_depth, height, width)
 
 
+def bilinear_grid_sample(data: Tensor, grid: Tensor) ->  Tensor:
+    nn.functional.grid_sample(data, grid, mode='bilinear', padding_mode='border', align_corners=False)
+    grid0: Tensor = torch.floor(grid).long()
+    grid1: Tensor = grid0 + 1
+
+    grid0[:, :, :, 0] = torch.clamp(grid0[:, :, :, 0], 0, data.shape[3] - 1)
+    grid1[:, :, :, 0] = torch.clamp(grid0[:, :, :, 0], 0, data.shape[3] - 1)
+    grid0[:, :, :, 1] = torch.clamp(grid0[:, :, :, 1], 0, data.shape[2] - 1)
+    grid1[:, :, :, 1] = torch.clamp(grid0[:, :, :, 1], 0, data.shape[2] - 1)
+
+    Ia: Tensor = im[y0, x0][0]
+    Ib: Tensor = im[y1, x0][0]
+    Ic: Tensor = im[y0, x1][0]
+    Id: Tensor = im[y1, x1][0]
+
+    wa: Tensor = (x1.type(dtype) - x) * (y1.type(dtype) - y)
+    wb: Tensor = (x1.type(dtype) - x) * (y - y0.type(dtype))
+    wc: Tensor = (x - x0.type(dtype)) * (y1.type(dtype) - y)
+    wd: Tensor = (x - x0.type(dtype)) * (y - y0.type(dtype))
+
+    return Ia * wa + Ib * wb + Ic * wc + Id * wd
+
+
 def is_empty(x: Tensor) -> bool:
     return x.numel() == 0

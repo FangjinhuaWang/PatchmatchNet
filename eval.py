@@ -37,7 +37,7 @@ def save_depth(args):
             # For non data parallel mode we need to convert the state dictionary and remove the 'module.` prefix
             new_dict: OrderedDict[str, Tensor] = {}
             for key in state_dict:
-                new_dict[key[7:]] = state_dict[key]
+                new_dict[key] = state_dict[key]
             missing, unexpected = model.load_state_dict(new_dict, strict=False)
         print('Missing keys')
         for key in missing:
@@ -298,7 +298,7 @@ if __name__ == '__main__':
                         choices=['custom', 'dtu', 'eth3d', 'blended'])
     parser.add_argument('--num_views', type=int, default=21,
                         help='total views for each patch-match problem including reference')
-    parser.add_argument('--image_max_dim', type=int, default=1024, help='max image dimension')
+    parser.add_argument('--image_max_dim', type=int, default=-1, help='max image dimension')
     parser.add_argument('--scan_list', type=str, default='',
                         help='Optional scan list text file to identify input folders')
     parser.add_argument('--batch_size', type=int, default=1, help='evaluation batch size')

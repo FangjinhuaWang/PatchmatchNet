@@ -54,12 +54,12 @@ class MVSDataset(Dataset):
 
         scan, prefix, ref_view, src_views = self.metas[idx]
         # use only the reference view and first num_views-1 source views
+        num_src_views = min(len(src_views), self.num_views)
         if self.robust_train:
-            num_src_views = len(src_views)
-            index = random.sample(range(num_src_views), self.num_views - 1)
+            index = random.sample(range(len(src_views)), num_src_views)
             view_ids = [ref_view] + [src_views[i] for i in index]
         else:
-            view_ids = [ref_view] + src_views[:self.num_views - 1]
+            view_ids = [ref_view] + src_views[:num_src_views]
 
         images = []
         intrinsics = []
@@ -96,7 +96,7 @@ class MVSDataset(Dataset):
                         self.data_path, scan, self.depth_folder, '{:0>8}.pfm'.format(view_id))
 
                 if os.path.isfile(depth_gt_filename):
-                    depth_gt = read_map(depth_gt_filename, self.max_dim)
+                    depth_gt = read_map(depth_gt_filename, self.max_dim).squeeze().copy()
                     # Create mask from GT depth map
                     mask = (depth_gt > depth_params[0]).astype(np.float32)
 
