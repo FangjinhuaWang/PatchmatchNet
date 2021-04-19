@@ -9,10 +9,8 @@ PatchmatchNet is a novel cascade formulation of learning-based Patchmatch which 
 @misc{wang2020patchmatchnet,
       title={PatchmatchNet: Learned Multi-View Patchmatch Stereo}, 
       author={Fangjinhua Wang and Silvano Galliani and Christoph Vogel and Pablo Speciale and Marc Pollefeys},
-      year={2020},
-      eprint={2012.01411},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV}
+      journal={CVPR},
+      year={2021}
 }
 ```
 
