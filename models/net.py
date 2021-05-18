@@ -1,15 +1,12 @@
-"""Implementation of PatchmatchNet
-    reference: https://github.com/FangjinhuaWang/PatchmatchNet
 
-"""
 from typing import Any, Dict, List
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from thirdparty.patchmatchnet.models.module import ConvBnReLU, depth_regression
-from thirdparty.patchmatchnet.models.patchmatch import PatchMatch
+from .module import ConvBnReLU, depth_regression
+from .patchmatch import PatchMatch
 
 
 class FeatureNet(nn.Module):
