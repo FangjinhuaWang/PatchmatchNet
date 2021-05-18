@@ -49,7 +49,6 @@ class FeatureNet(nn.Module):
             output_feature: a python dictionary contains extracted features from stage_1 to stage_3
                 keys are "stage_1", "stage_2", and "stage_3"
         """
-
         output_feature = {}
 
         conv1 = self.conv1(self.conv0(x))
@@ -69,7 +68,6 @@ class FeatureNet(nn.Module):
         output_feature["stage_1"] = self.output3(intra_feat)
 
         del intra_feat
-
         return output_feature
 
 
