@@ -59,7 +59,7 @@ def save_pfm(filename: str, image: np.ndarray, scale: float = 1) -> None:
 
     Args:
         filename: output .pfm file path string,
-        image: depth map to save, of shape (H,W)
+        image: depth map to save, of shape (H,W) or (H,W,C)
         scale: scale parameter to save
     """
     file = open(filename, "wb")
