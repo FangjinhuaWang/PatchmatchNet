@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from thirdparty.patchmatchnet.models.module import ConvBnReLU3D, differentiable_warping
+from .module import ConvBnReLU3D, differentiable_warping
 
 
 class DepthInitialization(nn.Module):
