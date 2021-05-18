@@ -1,7 +1,4 @@
-"""Implementation of PatchmatchNet
-    reference: https://github.com/FangjinhuaWang/PatchmatchNet
 
-"""
 from typing import Any, Dict, List
 
 import torch
