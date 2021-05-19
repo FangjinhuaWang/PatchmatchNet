@@ -98,13 +98,13 @@ class Refinement(nn.Module):
         """Forward method
 
         Args:
-            img: input source and reference images (B, 3, H, W)
+            img: input reference images (B, 3, H, W)
             depth_0: current depth map (B, 1, H//2, W//2)
             depth_min: pre-defined minimum depth (B, )
             depth_max: pre-defined maximum depth (B, )
 
         Returns:
-            depth: refined depth map (B, 1, H//2, W//2)
+            depth: refined depth map (B, 1, H, W)
         """
 
         batch_size = depth_min.size()[0]
@@ -131,7 +131,7 @@ class Refinement(nn.Module):
 
 
 class PatchmatchNet(nn.Module):
-    """ Implementation of complete structure of Patchmatch Net"""
+    """ Implementation of complete structure of PatchmatchNet"""
 
     def __init__(
         self,
@@ -142,7 +142,7 @@ class PatchmatchNet(nn.Module):
         propagate_neighbors: List[int] = [0, 8, 16],
         evaluate_neighbors: List[int] = [9, 9, 9],
     ) -> None:
-        """Initialize modules in patchmatch net
+        """Initialize modules in PatchmatchNet
 
         Args:
             patchmatch_interval_scale: depth interval scale in patchmatch module
