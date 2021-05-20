@@ -1,7 +1,4 @@
-"""PatchmatchNet utils
-    reference: https://github.com/FangjinhuaWang/PatchmatchNet
 
-"""
 from typing import Any, Callable, Union, Dict
 
 import numpy as np
@@ -197,7 +194,7 @@ def compute_metrics_for_each_image(metric_func: Callable) -> Callable:
 def Thres_metrics(
     depth_est: torch.Tensor, depth_gt: torch.Tensor, mask: torch.Tensor, thres: Union[int, float]
 ) -> torch.Tensor:
-    """Return error mask where absolute error is larger than threshold
+    """Return error rate for where absolute error is larger than threshold.
 
     Args:
         depth_est: estimated depth map
@@ -206,7 +203,7 @@ def Thres_metrics(
         thres: threshold
 
     Returns:
-        error rate: error rate of the mask
+        error rate: error rate of the depth map
     """
     # if thres is int or float, then True
     assert isinstance(thres, (int, float))
@@ -223,7 +220,7 @@ def AbsDepthError_metrics(depth_est: torch.Tensor, depth_gt: torch.Tensor, mask:
     """Calculate average absolute depth error
 
     Args:
-        depth_est: expected depth map
+        depth_est: estimated depth map
         depth_gt: ground truth depth map
         mask: mask
     """
