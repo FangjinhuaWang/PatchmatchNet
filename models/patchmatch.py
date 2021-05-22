@@ -1,6 +1,4 @@
-"""Implementation of Patchmatch Module
-    reference: https://github.com/FangjinhuaWang/PatchmatchNet
-
+"""
 PatchmatchNet uses the following main steps:
 
 1. Initialization: generate random hypotheses;
@@ -140,8 +138,7 @@ class Propagation(nn.Module):
             height: depth map height,
             width: depth map width,
             depth_sample: sample depth map, in shape of [batch, num_depth, height, width],
-            grid: 2D grid for bilinear gridding, in shape of [batch, neighbors*H, W, 2],
-                    Propagation neighbors generally equals to 9, suggesting the 3x3 neighbor grids.
+            grid: 2D grid for bilinear gridding, in shape of [batch, neighbors*H, W, 2]
             depth_min: minimum virtual depth, in shape of [batch, ]
             depth_max: maximum virtual depth, in shape of [batch, ]
             depth_interval_scale: depth virtual interval scale,
@@ -607,7 +604,7 @@ class PatchMatch(nn.Module):
                 images (or views) of PatchmatchNet
             depth_min: minimum virtual depth, (B,)
             depth_max: maximum virtual depth, (B,)
-            depth: current depth map, (B,H,W) or None
+            depth: current depth map, (B,1,H,W) or None
             img: image, (B,C,image_H,image_W)
             view_weights: Tensor to store weights of source views, in shape of (B,Nview-1,H,W),
                 Nview-1 represents the number of source views
@@ -793,7 +790,7 @@ class PatchMatch(nn.Module):
 
 class SimilarityNet(nn.Module):
     """Similarity Net, used in Evaluation module (adaptive evaluation step)
-    1. Do 3D convolution on aggregated cost [B, G, Ndepth, H, W] among all the source views,
+    1. Do 1x1x1 convolution on aggregated cost [B, G, Ndepth, H, W] among all the source views,
         where G is the number of groups
     2. Perform adaptive spatial cost aggregation to get final cost (scores)
     """
@@ -941,7 +938,7 @@ def depth_weight(
 
 
 class PixelwiseNet(nn.Module):
-    """Pixelwise Net: A simple pixel-wise view weight network, composed of 3D convolution layers with 1×1×1 kernels
+    """Pixelwise Net: A simple pixel-wise view weight network, composed of 1x1x1 convolution layers
     and sigmoid nonlinearities, takes the initial set of similarities to output a number between 0 and 1 per
     pixel as estimated pixel-wise view weight.
 
