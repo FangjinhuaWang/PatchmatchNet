@@ -134,8 +134,8 @@ def differentiable_warping(
 
     Args:
         src_fea: [B, C, H, W] source features, for each source view in batch
-        src_proj: [B, 4, 4] source camera poses, for each source view in batch
-        ref_proj: [B, 4, 4] reference camera pose, for each ref view in batch
+        src_proj: [B, 4, 4] source camera projection matrix, for each source view in batch
+        ref_proj: [B, 4, 4] reference camera projection matrix, for each ref view in batch
         depth_samples: [B, Ndepth, H, W] virtual depth layers
     Returns:
         warped_src_fea: [B, C, Ndepth, H, W] features on depths after perspective transformation
