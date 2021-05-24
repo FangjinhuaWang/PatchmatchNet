@@ -345,7 +345,7 @@ def patchmatchnet_loss(
     """
     stage = 4
 
-    loss = torch.Tensor([0])
+    loss = 0
     for l in range(1, stage):
         depth_gt_l = depth_gt[f"stage_{l}"]
         mask_l = mask[f"stage_{l}"] > 0.5

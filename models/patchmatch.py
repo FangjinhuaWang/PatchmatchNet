@@ -35,7 +35,7 @@ class DepthInitialization(nn.Module):
         width: int,
         depth_interval_scale: float,
         device: torch.device,
-        depth: torch.Tensor,
+        depth: torch.Tensor = None,
     ) -> torch.Tensor:
         """Forward function for depth initialization
 
@@ -84,10 +84,8 @@ class DepthInitialization(nn.Module):
                 inverse_max_depth = 1.0 / max_depth
 
                 depth_sample = (
-                    torch.arange(-self.patchmatch_num_sample // 2, self.patchmatch_num_sample // 2, 1)
-                    .view(1, self.patchmatch_num_sample, 1, 1)
-                    .repeat(batch_size, 1, height, width)
-                    .float()
+                    torch.arange(-self.patchmatch_num_sample // 2, self.patchmatch_num_sample // 2, 1, device=device)
+                    .view(1, self.patchmatch_num_sample, 1, 1).repeat(batch_size, 1, height, width).float()
                 )
                 inverse_depth_interval = (inverse_min_depth - inverse_max_depth) * depth_interval_scale
                 inverse_depth_interval = inverse_depth_interval.view(batch_size, 1, 1, 1)
@@ -246,7 +244,7 @@ class Evaluation(nn.Module):
 
         ref_feature = ref_feature.view(batch, self.G, feature_channel // self.G, height, width)
 
-        similarity_sum = torch.Tensor([0])
+        similarity_sum = 0
 
         if self.stage == 3 and view_weights is None:
             view_weights_list = []
@@ -402,8 +400,7 @@ class PatchMatch(nn.Module):
                     bias=True,
                 )
                 nn.init.constant_(self.propa_conv.weight, 0.0)
-                if self.propa_conv.bias:
-                    nn.init.constant_(self.propa_conv.bias, 0.0)
+                nn.init.constant_(self.propa_conv.bias, 0.0)
 
         # adaptive spatial cost aggregation (adaptive evaluation)
         self.eval_conv = nn.Conv2d(
@@ -416,8 +413,7 @@ class PatchMatch(nn.Module):
             bias=True,
         )
         nn.init.constant_(self.eval_conv.weight, 0.0)
-        if self.eval_conv.bias:
-            nn.init.constant_(self.eval_conv.bias, 0.0)
+        nn.init.constant_(self.eval_conv.bias, 0.0)
         self.feature_weight_net = FeatureWeightNet(num_feature, self.evaluate_neighbors, self.G)
 
     def get_propagation_grid(
@@ -915,8 +911,8 @@ def depth_weight(
     # normalization
     x = 1.0 / depth_sample
     del depth_sample
-    inverse_depth_min = torch.Tensor([1.0]) / depth_min
-    inverse_depth_max = torch.Tensor([1.0]) / depth_max
+    inverse_depth_min = 1.0 / depth_min
+    inverse_depth_max = 1.0 / depth_max
     x = (x - inverse_depth_max.view(batch, 1, 1, 1)) / (
         inverse_depth_min.view(batch, 1, 1, 1) - inverse_depth_max.view(batch, 1, 1, 1)
     )

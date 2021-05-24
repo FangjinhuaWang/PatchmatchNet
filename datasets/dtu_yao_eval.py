@@ -25,7 +25,7 @@ class MVSDataset(Dataset):
         metas = []
         with open(self.listfile) as f:
             scans = f.readlines()
-            scans = [line.rstrip() for line in scans]
+            scans = [line.rstrip() for line in scans][0:1]
             
                   
         for scan in scans:
