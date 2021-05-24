@@ -240,7 +240,7 @@ class Evaluation(nn.Module):
                 num_src_features == view_weights.size()[1]
             ), "Patchmatch Evaluation: Different number of images and view weights"
 
-        pixel_wise_weight_sum = 0
+        pixel_wise_weight_sum = 1e-5
 
         ref_feature = ref_feature.view(batch, self.G, feature_channel // self.G, height, width)
 
