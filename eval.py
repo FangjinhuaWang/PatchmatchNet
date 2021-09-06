@@ -18,6 +18,7 @@ from datasets.data_io import read_pfm, save_pfm
 import cv2
 from plyfile import PlyData, PlyElement
 from PIL import Image
+from typing import Tuple
 
 cudnn.benchmark = True
 
@@ -36,17 +37,17 @@ parser.add_argument('--loadckpt', default=None, help='load a specific checkpoint
 parser.add_argument('--outdir', default='./outputs', help='output dir')
 parser.add_argument('--display', action='store_true', help='display depth images and masks')
 
-parser.add_argument('--patchmatch_iteration', nargs='+', type=int, default=[1,2,2], 
+parser.add_argument('--patchmatch_iteration', nargs='+', type=int, default=[1,2,2],
         help='num of iteration of patchmatch on stages 1,2,3')
-parser.add_argument('--patchmatch_num_sample', nargs='+', type=int, default=[8,8,16], 
+parser.add_argument('--patchmatch_num_sample', nargs='+', type=int, default=[8,8,16],
         help='num of generated samples in local perturbation on stages 1,2,3')
-parser.add_argument('--patchmatch_interval_scale', nargs='+', type=float, default=[0.005, 0.0125, 0.025], 
+parser.add_argument('--patchmatch_interval_scale', nargs='+', type=float, default=[0.005, 0.0125, 0.025],
         help='normalized interval in inverse depth range to generate samples in local perturbation')
-parser.add_argument('--patchmatch_range', nargs='+', type=int, default=[6,4,2], 
+parser.add_argument('--patchmatch_range', nargs='+', type=int, default=[6,4,2],
         help='fixed offset of sampling points for propogation of patchmatch on stages 1,2,3')
-parser.add_argument('--propagate_neighbors', nargs='+', type=int, default=[0,8,16], 
+parser.add_argument('--propagate_neighbors', nargs='+', type=int, default=[0,8,16],
         help='num of neighbors for adaptive propagation on stages 1,2,3')
-parser.add_argument('--evaluate_neighbors', nargs='+', type=int, default=[9,9,9], 
+parser.add_argument('--evaluate_neighbors', nargs='+', type=int, default=[9,9,9],
         help='num of neighbors for adaptive matching cost aggregation of adaptive evaluation on stages 1,2,3')
 
 parser.add_argument('--geo_pixel_thres', type=float, default=1, help='pixel threshold for geometric consistency filtering')
@@ -68,7 +69,7 @@ def read_camera_parameters(filename):
     extrinsics = np.fromstring(' '.join(lines[1:5]), dtype=np.float32, sep=' ').reshape((4, 4))
     # intrinsics: line [7-10), 3x3 matrix
     intrinsics = np.fromstring(' '.join(lines[7:10]), dtype=np.float32, sep=' ').reshape((3, 3))
-    
+
     return intrinsics, extrinsics
 
 
@@ -114,8 +115,8 @@ def save_depth():
 
     # model
     model = PatchmatchNet(patchmatch_interval_scale=args.patchmatch_interval_scale,
-                propagation_range = args.patchmatch_range, patchmatch_iteration=args.patchmatch_iteration, 
-                patchmatch_num_sample = args.patchmatch_num_sample, 
+                propagation_range = args.patchmatch_range, patchmatch_iteration=args.patchmatch_iteration,
+                patchmatch_num_sample = args.patchmatch_num_sample,
                 propagate_neighbors=args.propagate_neighbors, evaluate_neighbors=args.evaluate_neighbors)
     model = nn.DataParallel(model)
     model.cuda()
@@ -125,21 +126,21 @@ def save_depth():
     state_dict = torch.load(args.loadckpt)
     model.load_state_dict(state_dict['model'])
     model.eval()
-    
+
     with torch.no_grad():
         for batch_idx, sample in enumerate(TestImgLoader):
             start_time = time.time()
             sample_cuda = tocuda(sample)
-            outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], 
+            outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"],
                             sample_cuda["depth_min"], sample_cuda["depth_max"])
-            
+
             outputs = tensor2numpy(outputs)
             del sample_cuda
             print('Iter {}/{}, time = {:.3f}'.format(batch_idx, len(TestImgLoader), time.time() - start_time))
             filenames = sample["filename"]
 
-            
-            
+
+
             # save depth maps and confidence maps
             for filename, depth_est, photometric_confidence in zip(filenames, outputs["refined_depth"]['stage_0'],
                                                                 outputs["photometric_confidence"]):
@@ -152,11 +153,36 @@ def save_depth():
                 save_pfm(depth_filename, depth_est)
                 # save confidence maps
                 save_pfm(confidence_filename, photometric_confidence)
-                
+
 
 
 # project the reference point cloud into the source view, then project back
-def reproject_with_depth(depth_ref, intrinsics_ref, extrinsics_ref, depth_src, intrinsics_src, extrinsics_src):
+def reproject_with_depth(
+    depth_ref: np.ndarray,
+    intrinsics_ref: np.ndarray,
+    extrinsics_ref: np.ndarray,
+    depth_src: np.ndarray,
+    intrinsics_src: np.ndarray,
+    extrinsics_src: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Project the reference points to the source view, then project back to calculate the reprojection error
+
+    Args:
+        depth_ref: depths of points in the reference view, of shape (H, W)
+        intrinsics_ref: camera intrinsic of the reference view, of shape (3, 3)
+        extrinsics_ref: camera extrinsic of the reference view, of shape (4, 4)
+        depth_src: depths of points in the source view, of shape (H, W)
+        intrinsics_src: camera intrinsic of the source view, of shape (3, 3)
+        extrinsics_src: camera extrinsic of the source view, of shape (4, 4)
+
+    Returns:
+        A tuble contains
+            depth_reprojected: reprojected depths of points in the reference view, of shape (H, W)
+            x_reprojected: reprojected x coordinates of points in the reference view, of shape (H, W)
+            y_reprojected: reprojected y coordinates of points in the reference view, of shape (H, W)
+            x_src: x coordinates of points in the source view, of shape (H, W)
+            y_src: y coordinates of points in the source view, of shape (H, W)
+    """
     width, height = depth_ref.shape[1], depth_ref.shape[0]
     ## step1. project reference pixels to the source view
     # reference view x, y
@@ -196,8 +222,35 @@ def reproject_with_depth(depth_ref, intrinsics_ref, extrinsics_ref, depth_src, i
     return depth_reprojected, x_reprojected, y_reprojected, x_src, y_src
 
 
-def check_geometric_consistency(depth_ref, intrinsics_ref, extrinsics_ref, depth_src, intrinsics_src, extrinsics_src,
-                                geo_pixel_thres, geo_depth_thres):
+def check_geometric_consistency(
+    depth_ref: np.ndarray,
+    intrinsics_ref: np.ndarray,
+    extrinsics_ref: np.ndarray,
+    depth_src: np.ndarray,
+    intrinsics_src: np.ndarray,
+    extrinsics_src: np.ndarray,
+    geo_pixel_thres: float,
+    geo_depth_thres: float,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Check geometric consistency and return valid points
+
+    Args:
+        depth_ref: depths of points in the reference view, of shape (H, W)
+        intrinsics_ref: camera intrinsic of the reference view, of shape (3, 3)
+        extrinsics_ref: camera extrinsic of the reference view, of shape (4, 4)
+        depth_src: depths of points in the source view, of shape (H, W)
+        intrinsics_src: camera intrinsic of the source view, of shape (3, 3)
+        extrinsics_src: camera extrinsic of the source view, of shape (4, 4)
+        geo_pixel_thres: geometric pixel threshold
+        geo_depth_thres: geometric depth threshold
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+            mask: mask for points with geometric consistency, of shape (H, W)
+            depth_reprojected: reprojected depths of points in the reference view, of shape (H, W)
+            x2d_src: x coordinates of points in the source view, of shape (H, W)
+            y2d_src: y coordinates of points in the source view, of shape (H, W)
+    """
     width, height = depth_ref.shape[1], depth_ref.shape[0]
     x_ref, y_ref = np.meshgrid(np.arange(0, width), np.arange(0, height))
     depth_reprojected, x2d_reprojected, y2d_reprojected, x2d_src, y2d_src = reproject_with_depth(depth_ref, intrinsics_ref, extrinsics_ref,
@@ -229,7 +282,7 @@ def filter_depth(scan_folder, out_folder, plyfilename, geo_pixel_thres, geo_dept
     nviews = len(pair_data)
     original_w = 1600
     original_h = 1200
-    
+
 
     # for each reference view and the corresponding source views
     for ref_view, src_views in pair_data:
@@ -248,10 +301,10 @@ def filter_depth(scan_folder, out_folder, plyfilename, geo_pixel_thres, geo_dept
 
         photo_mask = confidence > photo_thres
         photo_mask = np.squeeze(photo_mask, 2)
-        
+
 
         all_srcview_depth_ests = []
-        
+
 
         # compute the geometric mask
         geo_mask_sum = 0
@@ -263,7 +316,7 @@ def filter_depth(scan_folder, out_folder, plyfilename, geo_pixel_thres, geo_dept
             src_intrinsics[1] *= img_wh[1]/original_h
             # the estimated depth of the source view
             src_depth_est = read_pfm(os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(src_view)))[0]
-            
+
 
             geo_mask, depth_reprojected, x2d_src, y2d_src = check_geometric_consistency(ref_depth_est, ref_intrinsics, ref_extrinsics,
                                                                       src_depth_est,
@@ -271,16 +324,16 @@ def filter_depth(scan_folder, out_folder, plyfilename, geo_pixel_thres, geo_dept
                                                                       geo_pixel_thres, geo_depth_thres)
             geo_mask_sum += geo_mask.astype(np.int32)
             all_srcview_depth_ests.append(depth_reprojected)
-            
+
 
         depth_est_averaged = (sum(all_srcview_depth_ests) + ref_depth_est) / (geo_mask_sum + 1)
         # at least 3 source views matched
         # large threshold, high accuracy, low completeness
         geo_mask = geo_mask_sum >= 3
         final_mask = np.logical_and(photo_mask, geo_mask)
-        
 
-        
+
+
 
         os.makedirs(os.path.join(out_folder, "mask"), exist_ok=True)
         save_mask(os.path.join(out_folder, "mask/{:0>8}_photo.png".format(ref_view)), photo_mask)
@@ -288,7 +341,7 @@ def filter_depth(scan_folder, out_folder, plyfilename, geo_pixel_thres, geo_dept
         save_mask(os.path.join(out_folder, "mask/{:0>8}_final.png".format(ref_view)), final_mask)
         os.makedirs(os.path.join(out_folder, "depth_img"), exist_ok=True)
 
-        
+
 
         print("processing {}, ref-view{:0>2}, geo_mask:{:3f} photo_mask:{:3f} final_mask: {:3f}".format(scan_folder, ref_view,
                                                                 geo_mask.mean(), photo_mask.mean(), final_mask.mean()))
@@ -304,11 +357,11 @@ def filter_depth(scan_folder, out_folder, plyfilename, geo_pixel_thres, geo_dept
 
         height, width = depth_est_averaged.shape[:2]
         x, y = np.meshgrid(np.arange(0, width), np.arange(0, height))
-        
+
         valid_points = final_mask
         # print("valid_points", valid_points.mean())
         x, y, depth = x[valid_points], y[valid_points], depth_est_averaged[valid_points]
-        
+
         color = ref_img[valid_points]
         xyz_ref = np.matmul(    np.linalg.inv(ref_intrinsics),
                             np.vstack((x, y, np.ones_like(x))) * depth)
@@ -317,7 +370,7 @@ def filter_depth(scan_folder, out_folder, plyfilename, geo_pixel_thres, geo_dept
         vertexs.append(xyz_world.transpose((1, 0)))
         vertex_colors.append((color * 255).astype(np.uint8))
 
-        
+
     vertexs = np.concatenate(vertexs, axis=0)
     vertex_colors = np.concatenate(vertex_colors, axis=0)
     vertexs = np.array([tuple(v) for v in vertexs], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
@@ -338,16 +391,16 @@ if __name__ == '__main__':
     # step1. save all the depth maps and the masks in outputs directory
     save_depth()
     img_wh=(1600, 1200)
-    
+
     with open(args.testlist) as f:
         scans = f.readlines()
         scans = [line.rstrip() for line in scans]
-        
+
 
     for scan in scans:
         scan_id = int(scan[4:])
         scan_folder = os.path.join(args.testpath, scan)
         out_folder = os.path.join(args.outdir, scan)
         # step2. filter saved depth maps with geometric constraints
-        filter_depth(scan_folder, out_folder, os.path.join(args.outdir, 'patchmatchnet{:0>3}_l3.ply'.format(scan_id)), 
+        filter_depth(scan_folder, out_folder, os.path.join(args.outdir, 'patchmatchnet{:0>3}_l3.ply'.format(scan_id)),
                     args.geo_pixel_thres, args.geo_depth_thres, args.photo_thres, img_wh)
