@@ -124,26 +124,25 @@ def save_depth():
     # load checkpoint file specified by args.loadckpt
     print("loading model {}".format(args.loadckpt))
     state_dict = torch.load(args.loadckpt)
-    model.load_state_dict(state_dict['model'])
+    model.load_state_dict(state_dict['model'], strict=False)
+
     model.eval()
 
     with torch.no_grad():
         for batch_idx, sample in enumerate(TestImgLoader):
             start_time = time.time()
             sample_cuda = tocuda(sample)
-            outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"],
-                            sample_cuda["depth_min"], sample_cuda["depth_max"])
+            refined_depth, confidence, _ = model(sample_cuda["imgs"], sample_cuda["proj_matrices"],
+                                                 sample_cuda["depth_min"], sample_cuda["depth_max"])
+            refined_depth = tensor2numpy(refined_depth)
+            confidence = tensor2numpy(confidence)
 
-            outputs = tensor2numpy(outputs)
             del sample_cuda
             print('Iter {}/{}, time = {:.3f}'.format(batch_idx, len(TestImgLoader), time.time() - start_time))
             filenames = sample["filename"]
 
-
-
             # save depth maps and confidence maps
-            for filename, depth_est, photometric_confidence in zip(filenames, outputs["refined_depth"]['stage_0'],
-                                                                outputs["photometric_confidence"]):
+            for filename, depth_est, photometric_confidence in zip(filenames, refined_depth, confidence):
                 depth_filename = os.path.join(args.outdir, filename.format('depth_est', '.pfm'))
                 confidence_filename = os.path.join(args.outdir, filename.format('confidence', '.pfm'))
                 os.makedirs(depth_filename.rsplit('/', 1)[0], exist_ok=True)

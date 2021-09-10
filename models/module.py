@@ -201,7 +201,7 @@ def depth_regression(p: torch.Tensor, depth_values: torch.Tensor) -> torch.Tenso
         result depth: expected value, soft argmin [B, 1, H, W]
     """
 
-    depth_values = depth_values.view(*depth_values.shape, 1, 1)
+    depth_values = depth_values.view(depth_values.shape[0], 1, 1)
     depth = torch.sum(p * depth_values, dim=1)
     depth = depth.unsqueeze(1)
     return depth
