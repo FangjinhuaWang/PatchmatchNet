@@ -377,7 +377,6 @@ class PatchMatch(nn.Module):
         self.evaluation = Evaluation(self.G, self.stage, self.evaluate_neighbors, self.patchmatch_iteration)
         # adaptive propagation
         # last iteration on stage 1 does not have propagation, but we still define this for TorchScript export compatibility
-        # This may have some impact on training! need to investigate
         self.propa_conv = nn.Conv2d(
             in_channels=self.propa_num_feature,
             out_channels=max(2 * self.propagate_neighbors, 1),
