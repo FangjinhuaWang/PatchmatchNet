@@ -167,9 +167,9 @@ def differentiable_warping(
         proj_xyz = rot_depth_xyz + trans.view(batch, 3, 1, 1)  # [B, 3, Ndepth, H*W]
         # avoid negative depth
         negative_depth_mask = proj_xyz[:, 2:] <= 1e-3
-        proj_xyz[:, 0:1][negative_depth_mask] = width
-        proj_xyz[:, 1:2][negative_depth_mask] = height
-        proj_xyz[:, 2:3][negative_depth_mask] = 1
+        proj_xyz[:, 0:1][negative_depth_mask] = float(width)
+        proj_xyz[:, 1:2][negative_depth_mask] = float(height)
+        proj_xyz[:, 2:3][negative_depth_mask] = 1.0
         proj_xy = proj_xyz[:, :2, :, :] / proj_xyz[:, 2:3, :, :]  # [B, 2, Ndepth, H*W]
         proj_x_normalized = proj_xy[:, 0, :, :] / ((width - 1) / 2) - 1  # [B, Ndepth, H*W]
         proj_y_normalized = proj_xy[:, 1, :, :] / ((height - 1) / 2) - 1
@@ -184,9 +184,7 @@ def differentiable_warping(
         align_corners=True,
     )
 
-    warped_src_fea = warped_src_fea.view(batch, channels, num_depth, height, width)
-
-    return warped_src_fea
+    return warped_src_fea.view(batch, channels, num_depth, height, width)
 
 
 def depth_regression(p: torch.Tensor, depth_values: torch.Tensor) -> torch.Tensor:
@@ -201,21 +199,9 @@ def depth_regression(p: torch.Tensor, depth_values: torch.Tensor) -> torch.Tenso
         result depth: expected value, soft argmin [B, 1, H, W]
     """
 
-    depth_values = depth_values.view(depth_values.shape[0], 1, 1)
-    depth = torch.sum(p * depth_values, dim=1)
-    depth = depth.unsqueeze(1)
-    return depth
+    return torch.sum(p * depth_values.view(depth_values.shape[0], 1, 1), dim=1).unsqueeze(1)
 
 
-def depth_regression_1(p: torch.Tensor, depth_values: torch.Tensor) -> torch.Tensor:
-    """another version of depth regression function
-    Args:
-        p: probability volume [B, D, H, W]
-        depth_values: discrete depth values [B, D]
-    Returns:
-        result depth: expected value, soft argmin [B, 1, H, W]
-    """
+def is_empty(x: torch.Tensor) -> bool:
+    return x.numel() == 0
 
-    depth = torch.sum(p * depth_values, 1)
-    depth = depth.unsqueeze(1)
-    return depth
