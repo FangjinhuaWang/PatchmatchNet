@@ -83,8 +83,13 @@ def save_depth():
         for batch_idx, sample in enumerate(image_loader):
             start_time = time.time()
             sample_cuda = tocuda(sample)
-            refined_depth, confidence, _ = model(sample_cuda["imgs"], sample_cuda["proj_matrices"],
-                                                 sample_cuda["depth_min"], sample_cuda["depth_max"])
+            refined_depth, confidence, _ = model(
+                sample_cuda["images"],
+                sample_cuda["intrinsics"],
+                sample_cuda["extrinsics"],
+                sample_cuda["depth_min"],
+                sample_cuda["depth_max"]
+            )
             refined_depth = tensor2numpy(refined_depth)
             confidence = tensor2numpy(confidence)
 

@@ -73,22 +73,26 @@ def save_depth():
         propagate_neighbors=args.propagate_neighbors,
         evaluate_neighbors=args.evaluate_neighbors
     )
-    # model = nn.DataParallel(model)
+    model = nn.DataParallel(model)
     model.cuda()
 
     # load checkpoint file specified by args.loadckpt
     print("loading model {}".format(args.loadckpt))
     state_dict = torch.load(args.loadckpt)
     model.load_state_dict(state_dict['model'], strict=False)
-
     model.eval()
 
     with torch.no_grad():
         for batch_idx, sample in enumerate(image_loader):
             start_time = time.time()
             sample_cuda = tocuda(sample)
-            refined_depth, confidence, _ = model(sample_cuda["imgs"], sample_cuda["proj_matrices"],
-                                                 sample_cuda["depth_min"], sample_cuda["depth_max"])
+            refined_depth, confidence, _ = model(
+                sample_cuda["images"],
+                sample_cuda["intrinsics"],
+                sample_cuda["extrinsics"],
+                sample_cuda["depth_min"],
+                sample_cuda["depth_max"]
+            )
             refined_depth = tensor2numpy(refined_depth)
             confidence = tensor2numpy(confidence)
 
