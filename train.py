@@ -214,7 +214,7 @@ def train_sample(sample, detailed_summary=False):
     depth_gt = create_stage_images(sample_cuda["depth"])
     mask = create_stage_images(sample_cuda["mask"])
     
-    depth_est, _, depth_patchmatch = model(
+    _, _, depth_patchmatch = model(
         sample_cuda["images"],
         sample_cuda["intrinsics"],
         sample_cuda["extrinsics"],
@@ -222,8 +222,6 @@ def train_sample(sample, detailed_summary=False):
         sample_cuda["depth_max"]
     )
 
-    depth_patchmatch[0] = [depth_est]
-    del depth_est
     loss = model_loss(depth_patchmatch, depth_gt, mask)
     loss.backward()
     optimizer.step()
@@ -270,7 +268,7 @@ def test_sample(sample, detailed_summary=True):
     depth_gt = create_stage_images(sample_cuda["depth"])
     mask = create_stage_images(sample_cuda["mask"])
     
-    depth_est, _, depth_patchmatch = model(
+    _, _, depth_patchmatch = model(
         sample_cuda["images"],
         sample_cuda["intrinsics"],
         sample_cuda["extrinsics"],
@@ -278,8 +276,6 @@ def test_sample(sample, detailed_summary=True):
         sample_cuda["depth_max"]
     )
 
-    depth_patchmatch[0] = [depth_est]
-    del depth_est
     loss = model_loss(depth_patchmatch, depth_gt, mask)
     scalar_outputs = {"loss": loss}
     image_outputs = {

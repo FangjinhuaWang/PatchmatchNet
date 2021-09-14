@@ -194,7 +194,9 @@ class PatchmatchNet(nn.Module):
         """
         assert len(images) == intrinsics.size()[1], "Different number of images and intrinsic matrices"
         assert len(images) == extrinsics.size()[1], 'Different number of images and extrinsic matrices'
+        images, intrinsics, orig_height, orig_width = adjust_image_dims(images, intrinsics)
         ref_image = images[0]
+        _, _, ref_height, ref_width = ref_image.size()
 
         # step 1. Multi-scale feature extraction
         features: List[Dict[int, torch.Tensor]] = []
@@ -275,6 +277,9 @@ class PatchmatchNet(nn.Module):
 
         # step 3. Refinement
         depth = self.upsample_net(ref_image, depth, depth_min, depth_max)
+        if ref_width != orig_width or ref_height != orig_height:
+            depth = F.interpolate(depth, size=[orig_height, orig_width], mode='bilinear', align_corners=False)
+        depth_patchmatch[0] = [depth]
 
         if self.training:
             return depth, torch.empty(0), depth_patchmatch
@@ -288,9 +293,27 @@ class PatchmatchNet(nn.Module):
                 score, depth_values=torch.arange(num_depth, device=score.device, dtype=torch.float)
             ).long().clamp(0, num_depth - 1)
             photometric_confidence = torch.gather(score_sum4, 1, depth_index)
-            photometric_confidence = F.interpolate(photometric_confidence, scale_factor=2.0, mode="nearest").squeeze(1)
+            photometric_confidence = F.interpolate(
+                photometric_confidence, size=[orig_height, orig_width], mode="nearest").squeeze(1)
 
             return depth, photometric_confidence, depth_patchmatch
+
+
+def adjust_image_dims(
+        images: List[torch.Tensor], intrinsics: torch.Tensor) -> Tuple[List[torch.Tensor], torch.Tensor, int, int]:
+    # stretch or compress image slightly to ensure width and height are multiples of 8
+    _, _, ref_height, ref_width = images[0].size()
+    for i in range(len(images)):
+        _, _, height, width = images[i].size()
+        new_height = int(round(height / 8)) * 8
+        new_width = int(round(width / 8)) * 8
+        if new_width != width or new_height != height:
+            intrinsics[:, i, 0] *= new_width / width
+            intrinsics[:, i, 1] *= new_height / height
+            images[i] = nn.functional.interpolate(
+                images[i], size=[new_height, new_width], mode='bilinear', align_corners=False)
+
+    return images, intrinsics, ref_height, ref_width
 
 
 def patchmatchnet_loss(
