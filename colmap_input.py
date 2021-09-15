@@ -160,7 +160,7 @@ def read_images_binary(path: str) -> List[Image]:
             qvec = binary_image_properties[1:5]
             tvec = binary_image_properties[5:8]
             cam_id = binary_image_properties[8]
-            image_name = ''
+            image_name = ""
             current_char = read_next_bytes(fid, 1, "c")[0]
             while current_char != b"\x00":  # look for the ASCII 0 entry
                 image_name += current_char.decode("utf-8")
@@ -249,7 +249,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Convert colmap results into input for PatchmatchNet")
 
     parser.add_argument("--input_folder", type=str, help="Project input dir.")
-    parser.add_argument("--output_folder", type=str, default='', help="Project output dir.")
+    parser.add_argument("--output_folder", type=str, default="", help="Project output dir.")
     parser.add_argument("--num_src_images", type=int, default=-1, help="Related images")
     parser.add_argument("--theta0", type=float, default=5)
     parser.add_argument("--sigma1", type=float, default=1)
@@ -261,6 +261,12 @@ if __name__ == "__main__":
 
     if not args.output_folder:
         args.output_folder = args.input_folder
+
+    if args.input_folder is None or not os.path.isdir(args.input_folder):
+        raise Exception("Invalid input folder")
+
+    if args.output_folder is None or not os.path.isdir(args.output_folder):
+        raise Exception("Invalid output folder")
 
     image_dir = os.path.join(args.input_folder, "images")
     model_dir = os.path.join(args.input_folder, "sparse")

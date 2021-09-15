@@ -1,5 +1,4 @@
 import argparse
-import numpy as np
 import os
 import shutil
 from datasets.data_io import read_image_dictionary
@@ -61,7 +60,7 @@ if __name__ == "__main__":
 
             # Copy GT depth map
             depth_gt_filename = os.path.join(args.input_folder, scan, "depths", image_index[view_id])
-            depth_gt_filename = os.path.splitext(depth_gt_filename.replace('_undistorted', ''))[0] + '.pfm'
+            depth_gt_filename = os.path.splitext(depth_gt_filename.replace("_undistorted", ""))[0] + ".pfm"
             shutil.copy(depth_gt_filename, os.path.join(depth_path, "{:0>8}.pfm".format(view_id)))
 
             # Create mask from GT depth map and save in output

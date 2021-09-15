@@ -125,8 +125,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Convert colmap results into input for PatchMatchNet")
 
     parser.add_argument("--input_folder", type=str, help="Input PatchMatchNet reconstruction dir")
-    parser.add_argument("--results_folder", type=str, help="Input PatchMatchNet results dir")
-    parser.add_argument("--output_folder", type=str, default='', help="Output ColMap MVS workspace")
+    parser.add_argument("--results_folder", type=str, default="", help="Input PatchMatchNet results dir")
+    parser.add_argument("--output_folder", type=str, default="", help="Output ColMap MVS workspace")
 
     args = parser.parse_args()
 
@@ -135,6 +135,15 @@ if __name__ == "__main__":
 
     if not args.output_folder:
         args.output_folder = args.input_folder
+
+    if args.input_folder is None or not os.path.isdir(args.input_folder):
+        raise Exception("Invalid input folder")
+
+    if args.results_folder is None or not os.path.isdir(args.results_folder):
+        raise Exception("Invalid results folder")
+
+    if args.output_folder is None or not os.path.isdir(args.output_folder):
+        raise Exception("Invalid output folder")
 
     create_output_dirs(args.output_folder)
     copy_maps(args.input_folder, args.results_folder, args.output_folder)
