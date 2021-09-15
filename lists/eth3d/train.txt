@@ -1,0 +1,5 @@
+delivery_area
+electro
+forest
+playground
+terrains
