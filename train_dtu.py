@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 import time
 from typing import List
 from torch.utils.tensorboard import SummaryWriter
-from datasets import find_dataset_def
+from datasets.dtu_yao import MVSDataset
 from models import *
 from utils import *
 import sys
@@ -21,7 +21,6 @@ parser = argparse.ArgumentParser(description='PatchmatchNet for high-resolution 
 parser.add_argument('--mode', default='train', help='train or val', choices=['train', 'val'])
 parser.add_argument('--model', default='PatchmatchNet', help='select model')
 
-parser.add_argument('--dataset', default='dtu_yao', help='select dataset')
 parser.add_argument('--trainpath', help='train datapath')
 parser.add_argument('--valpath', help='validation datapath')
 parser.add_argument('--trainlist', help='train list')
@@ -84,7 +83,6 @@ print("argv:", sys.argv[1:])
 print_args(args)
 
 # dataset, dataloader
-MVSDataset = find_dataset_def(args.dataset)
 train_dataset = MVSDataset(args.trainpath, args.trainlist, "train", 5, robust_train=True)
 test_dataset = MVSDataset(args.valpath, args.vallist, "val", 5,  robust_train=False)
 
@@ -326,4 +324,3 @@ if __name__ == '__main__':
         train()
     elif args.mode == "val":
         test()
-    
