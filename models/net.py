@@ -55,12 +55,13 @@ class FeatureNet(nn.Module):
         conv10 = self.conv10(self.conv9(self.conv8(conv7)))
 
         output_feature[3] = self.output1(conv10)
-        intra_feat = F.interpolate(conv10, scale_factor=2.0, mode="bilinear") + self.inner1(conv7)
+        intra_feat = F.interpolate(conv10, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner1(conv7)
         del conv7
         del conv10
 
         output_feature[2] = self.output2(intra_feat)
-        intra_feat = F.interpolate(intra_feat, scale_factor=2.0, mode="bilinear") + self.inner2(conv4)
+        intra_feat = F.interpolate(
+            intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(conv4)
         del conv4
 
         output_feature[1] = self.output3(intra_feat)
@@ -126,12 +127,12 @@ class PatchmatchNet(nn.Module):
 
     def __init__(
         self,
-        patchmatch_interval_scale: List[float] = [0.005, 0.0125, 0.025],
-        propagation_range: List[int] = [6, 4, 2],
-        patchmatch_iteration: List[int] = [1, 2, 2],
-        patchmatch_num_sample: List[int] = [8, 8, 16],
-        propagate_neighbors: List[int] = [0, 8, 16],
-        evaluate_neighbors: List[int] = [9, 9, 9],
+        patchmatch_interval_scale: List[float],
+        propagation_range: List[int],
+        patchmatch_iteration: List[int],
+        patchmatch_num_sample: List[int],
+        propagate_neighbors: List[int],
+        evaluate_neighbors: List[int],
     ) -> None:
         """Initialize modules in PatchmatchNet
 
@@ -231,7 +232,7 @@ class PatchmatchNet(nn.Module):
 
             # Need conditional since TorchScript only allows "getattr" access with string literals
             if stage == 3:
-                depths, _, view_weights = self.patchmatch_3(
+                depths, score, view_weights = self.patchmatch_3(
                     ref_feature=ref_feature[stage],
                     src_features=src_features_l,
                     ref_proj=ref_proj,
@@ -242,7 +243,7 @@ class PatchmatchNet(nn.Module):
                     view_weights=view_weights,
                 )
             elif stage == 2:
-                depths, _, view_weights = self.patchmatch_2(
+                depths, score, view_weights = self.patchmatch_2(
                     ref_feature=ref_feature[stage],
                     src_features=src_features_l,
                     ref_proj=ref_proj,
@@ -253,7 +254,7 @@ class PatchmatchNet(nn.Module):
                     view_weights=view_weights,
                 )
             elif stage == 1:
-                depths, score, _ = self.patchmatch_1(
+                depths, score, view_weights = self.patchmatch_1(
                     ref_feature=ref_feature[stage],
                     src_features=src_features_l,
                     ref_proj=ref_proj,
@@ -333,9 +334,8 @@ def patchmatchnet_loss(
     """
     loss = 0
     for i in range(0, 4):
-        mask_i = mask[i] > 0.5
-        gt_depth = depth_gt[i][mask_i]
+        gt_depth = depth_gt[i][mask[i]]
         for depth in depth_patchmatch[i]:
-            loss = loss + F.smooth_l1_loss(depth[mask_i], gt_depth, reduction="mean")
+            loss = loss + F.smooth_l1_loss(depth[mask[i]], gt_depth, reduction="mean")
 
     return loss

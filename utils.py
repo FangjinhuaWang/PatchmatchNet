@@ -1,18 +1,15 @@
-
-from typing import Any, Callable, Union, Dict
-
 import numpy as np
-
-import torchvision.utils as vutils
+import torchvision.utils
 import torch
-import torch.utils.tensorboard as tb
+from torch.utils.tensorboard import SummaryWriter
+from typing import Any, Callable, Union, Dict
 
 
 def print_args(args: Any) -> None:
     """Utilities to print arguments
 
-    Arsg:
-        args: arguments to pring out
+    Args:
+        args: arguments to print out
     """
     print("################################  args  ################################")
     for k, v in args.__dict__.items():
@@ -48,53 +45,53 @@ def make_recursive_func(func: Callable) -> Callable:
         recursive style function
     """
 
-    def wrapper(vars):
-        if isinstance(vars, list):
-            return [wrapper(x) for x in vars]
-        elif isinstance(vars, tuple):
-            return tuple([wrapper(x) for x in vars])
-        elif isinstance(vars, dict):
-            return {k: wrapper(v) for k, v in vars.items()}
+    def wrapper(args):
+        if isinstance(args, list):
+            return [wrapper(x) for x in args]
+        elif isinstance(args, tuple):
+            return tuple([wrapper(x) for x in args])
+        elif isinstance(args, dict):
+            return {k: wrapper(v) for k, v in args.items()}
         else:
-            return func(vars)
+            return func(args)
 
     return wrapper
 
 
 @make_recursive_func
-def tensor2float(vars: Any) -> float:
+def tensor2float(args: Any) -> float:
     """Convert tensor to float"""
-    if isinstance(vars, float):
-        return vars
-    elif isinstance(vars, torch.Tensor):
-        return vars.data.item()
+    if isinstance(args, float):
+        return args
+    elif isinstance(args, torch.Tensor):
+        return args.data.item()
     else:
-        raise NotImplementedError("invalid input type {} for tensor2float".format(type(vars)))
+        raise NotImplementedError("invalid input type {} for tensor2float".format(type(args)))
 
 
 @make_recursive_func
-def tensor2numpy(vars: Any) -> np.ndarray:
+def tensor2numpy(args: Any) -> np.ndarray:
     """Convert tensor to numpy array"""
-    if isinstance(vars, np.ndarray):
-        return vars
-    elif isinstance(vars, torch.Tensor):
-        return vars.detach().cpu().numpy().copy()
+    if isinstance(args, np.ndarray):
+        return args
+    elif isinstance(args, torch.Tensor):
+        return args.detach().cpu().numpy().copy()
     else:
-        raise NotImplementedError("invalid input type {} for tensor2numpy".format(type(vars)))
+        raise NotImplementedError("invalid input type {} for tensor2numpy".format(type(args)))
 
 
 @make_recursive_func
-def tocuda(vars: Any) -> Union[str, torch.Tensor]:
+def to_cuda(args: Any) -> Union[str, torch.Tensor]:
     """Convert tensor to tensor on GPU"""
-    if isinstance(vars, torch.Tensor):
-        return vars.cuda()
-    elif isinstance(vars, str):
-        return vars
+    if isinstance(args, torch.Tensor):
+        return args.cuda()
+    elif isinstance(args, str):
+        return args
     else:
-        raise NotImplementedError("invalid input type {} for tocuda".format(type(vars)))
+        raise NotImplementedError("invalid input type {} for to_cuda".format(type(args)))
 
 
-def save_scalars(logger: tb.SummaryWriter, mode: str, scalar_dict: Dict[str, Any], global_step: int) -> None:
+def save_scalars(logger: SummaryWriter, mode: str, scalar_dict: Dict[str, Any], global_step: int) -> None:
     """Log values stored in the scalar dictionary
 
     Args:
@@ -114,26 +111,24 @@ def save_scalars(logger: tb.SummaryWriter, mode: str, scalar_dict: Dict[str, Any
                 logger.add_scalar(name, value[idx], global_step)
 
 
-def save_images(logger: tb.SummaryWriter, mode: str, images_dict: Dict[str, Any], global_step: int) -> None:
+def save_images(logger: SummaryWriter, mode: str, images: Dict[str, np.ndarray], global_step: int) -> None:
     """Log images stored in the image dictionary
 
     Args:
         logger: tensorboard summary writer
         mode: mode name used in writing summaries
-        images_dict: python dictionary stores the key and image pairs to be recorded
+        images: python dictionary stores the key and image pairs to be recorded
         global_step: step index where the logger should write
     """
-    images_dict = tensor2numpy(images_dict)
+    def preprocess(image_name, image):
+        if not (len(image.shape) == 3 or len(image.shape) == 4):
+            raise NotImplementedError("invalid img shape {}:{} in save_images".format(image_name, image.shape))
+        if len(image.shape) == 3:
+            image = image[:, np.newaxis, :, :]
+        image = torch.from_numpy(image[:1])
+        return torchvision.utils.make_grid(image, padding=0, nrow=1, normalize=True, scale_each=True)
 
-    def preprocess(name, img):
-        if not (len(img.shape) == 3 or len(img.shape) == 4):
-            raise NotImplementedError("invalid img shape {}:{} in save_images".format(name, img.shape))
-        if len(img.shape) == 3:
-            img = img[:, np.newaxis, :, :]
-        img = torch.from_numpy(img[:1])
-        return vutils.make_grid(img, padding=0, nrow=1, normalize=True, scale_each=True)
-
-    for key, value in images_dict.items():
+    for key, value in images.items():
         if not isinstance(value, (list, tuple)):
             name = "{}/{}".format(mode, key)
             logger.add_image(name, preprocess(name, value), global_step)
@@ -191,8 +186,8 @@ def compute_metrics_for_each_image(metric_func: Callable) -> Callable:
 
 @make_nograd_func
 @compute_metrics_for_each_image
-def Thres_metrics(
-    depth_est: torch.Tensor, depth_gt: torch.Tensor, mask: torch.Tensor, thres: Union[int, float]
+def threshold_metrics(
+    depth_est: torch.Tensor, depth_gt: torch.Tensor, mask: torch.Tensor, threshold: float
 ) -> torch.Tensor:
     """Return error rate for where absolute error is larger than threshold.
 
@@ -200,23 +195,21 @@ def Thres_metrics(
         depth_est: estimated depth map
         depth_gt: ground truth depth map
         mask: mask
-        thres: threshold
+        threshold: threshold
 
     Returns:
         error rate: error rate of the depth map
     """
-    # if thres is int or float, then True
-    assert isinstance(thres, (int, float))
     depth_est, depth_gt = depth_est[mask], depth_gt[mask]
-    errors = torch.abs(depth_est - depth_gt)
-    err_mask = errors > thres
+    errors = torch.abs(depth_est - depth_gt).float()
+    err_mask = errors > threshold
     return torch.mean(err_mask.float())
 
 
 # NOTE: please do not use this to build up training loss
 @make_nograd_func
 @compute_metrics_for_each_image
-def AbsDepthError_metrics(depth_est: torch.Tensor, depth_gt: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+def absolute_depth_error_metrics(depth_est: torch.Tensor, depth_gt: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     """Calculate average absolute depth error
 
     Args:

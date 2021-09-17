@@ -91,9 +91,10 @@ class MVSDataset(Dataset):
                 depth_gt_filename = os.path.join(self.data_path, scan, self.depth_folder, "{:0>8}.pfm".format(view_id))
 
                 if os.path.isfile(depth_gt_filename):
-                    depth_gt = read_map(depth_gt_filename, self.max_dim).transpose([2, 0, 1])
+                    # Using `copy()` here to avoid the negative stride resulting from the transpose
+                    depth_gt = read_map(depth_gt_filename, self.max_dim).transpose([2, 0, 1]).copy()
                     # Create mask from GT depth map
-                    mask = (depth_gt >= depth_min).astype(np.float32)
+                    mask = depth_gt >= depth_min
 
         intrinsics = np.stack(intrinsics)
         extrinsics = np.stack(extrinsics)

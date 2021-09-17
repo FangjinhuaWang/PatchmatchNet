@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from datasets.data_io import read_cam_file, read_image, read_map, read_pair_file, save_image, save_map
 from datasets.mvs import MVSDataset
 from models.net import PatchmatchNet
-from utils import print_args, tensor2numpy, tocuda
+from utils import print_args, tensor2numpy, to_cuda
 
 
 def save_depth(args):
@@ -30,14 +30,13 @@ def save_depth(args):
             evaluate_neighbors=args.evaluate_neighbors
         )
 
-        if args.parallel:
-            model = nn.DataParallel(model)
-
+        model = nn.DataParallel(model)
         state_dict = torch.load(args.checkpoint_path)["model"]
         model.load_state_dict(state_dict, strict=False)
     else:
         print("Using scripted module from {}".format(args.checkpoint_path))
         model = torch.jit.load(args.checkpoint_path)
+        model = nn.DataParallel(model)
 
     model.cuda()
     model.eval()
@@ -56,7 +55,7 @@ def save_depth(args):
     with torch.no_grad():
         for batch_idx, sample in enumerate(image_loader):
             start_time = time.time()
-            sample_cuda = tocuda(sample)
+            sample_cuda = to_cuda(sample)
             depth, confidence, _ = model.forward(
                 sample_cuda["images"],
                 sample_cuda["intrinsics"],
@@ -313,7 +312,6 @@ if __name__ == "__main__":
                         choices=["params", "module"])
     parser.add_argument("--output_type", type=str, default="both", help="Type of outputs to produce",
                         choices=["depth", "fusion", "both"])
-    parser.add_argument("--parallel", action="store_true", default=False, help="If set use DataParallel.")
 
     # Dataset loading options
     parser.add_argument("--num_views", type=int, default=2,
