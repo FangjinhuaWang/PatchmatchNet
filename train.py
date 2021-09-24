@@ -43,7 +43,6 @@ parser.add_argument('--resume', action='store_true', help='continue to train the
 parser.add_argument('--summary_freq', type=int, default=20, help='print and summary frequency')
 parser.add_argument('--save_freq', type=int, default=1, help='save checkpoint frequency')
 parser.add_argument('--seed', type=int, default=1, metavar='S', help='random seed')
-parser.add_argument('--parallel', action='store_true', default=False, help='If set use DataParallel; this prevents TorchScript module export.')
 
 parser.add_argument('--patchmatch_iteration', nargs='+', type=int, default=[1,2,2], 
         help='num of iteration of patchmatch on stages 1,2,3')
@@ -98,7 +97,7 @@ model = PatchmatchNet(patchmatch_interval_scale=args.patchmatch_interval_scale,
                 propagation_range = args.patchmatch_range, patchmatch_iteration=args.patchmatch_iteration, 
                 patchmatch_num_sample = args.patchmatch_num_sample, 
                 propagate_neighbors=args.propagate_neighbors, evaluate_neighbors=args.evaluate_neighbors)
-if args.parallel and args.mode in ["train", "val"]:
+if args.mode in ["train", "val"]:
     model = nn.DataParallel(model)
 model.cuda()
 model_loss = patchmatchnet_loss
@@ -162,11 +161,12 @@ def train():
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict()},
                 "{}/model_{:0>6}.ckpt".format(args.logdir, epoch_idx))
-            if not args.parallel:
-                model.eval()
-                sm = torch.jit.script(model)
-                sm.save(os.path.join(args.logdir, 'module_{:0>6}.pt'.format(epoch_idx)))
-                model.train()
+            # There is only one child here (PatchmatchNet module), but we have to use the iterator to access it
+            for child_model in model.children():
+                child_model.eval()
+                sm = torch.jit.script(child_model)
+                sm.save(os.path.join(args.logdir, "module_{:0>6}.pt".format(epoch_idx)))
+                child_model.train()
 
         # testing
         avg_test_scalars = DictAverageMeter()

@@ -238,8 +238,7 @@ class Evaluation(nn.Module):
             ), "Patchmatch Evaluation: Different number of images and view weights"
 
         # Change to a tensor with value 1e-5
-        pixel_wise_weight_sum = 1e-5
-        # pixel_wise_weight_sum = torch.zeros((batch, 1, 1, height, width), dtype=torch.float32, device=device)
+        pixel_wise_weight_sum = 1e-5 * torch.ones((batch, 1, 1, height, width), dtype=torch.float32, device=device)
         ref_feature = ref_feature.view(batch, self.G, feature_channel // self.G, height, width)
         similarity_sum = torch.zeros((batch, self.G, num_depth, height, width), dtype=torch.float32, device=device)
 
