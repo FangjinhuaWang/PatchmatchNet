@@ -5,7 +5,7 @@ PatchmatchNet uses the following main steps:
 2. Propagation: propagate hypotheses to neighbors;
 3. Evaluation: compute the matching costs for all the hypotheses and choose best solutions.
 """
-from typing import List, Optional, Tuple, Union
+from typing import List, Tuple
 
 import torch
 import torch.nn as nn
@@ -35,7 +35,7 @@ class DepthInitialization(nn.Module):
         width: int,
         depth_interval_scale: float,
         device: torch.device,
-        depth: torch.Tensor = None,
+        depth: torch.Tensor = torch.empty(0),
     ) -> torch.Tensor:
         """Forward function for depth initialization
 
@@ -100,8 +100,6 @@ class DepthInitialization(nn.Module):
                     )
 
                 depth_sample = 1.0 / torch.cat(depth_clamped, dim=0)
-                del depth_clamped
-
                 return depth_sample
 
 
@@ -183,9 +181,8 @@ class Evaluation(nn.Module):
 
         self.G = G
         self.stage = stage
-        if self.stage == 3:
-            self.pixel_wise_net = PixelwiseNet(self.G)
-
+        self.pixel_wise_net = PixelwiseNet(self.G)
+        self.softmax = nn.LogSoftmax(dim=1)
         self.similarity_net = SimilarityNet(self.G, evaluate_neighbors)
 
     def forward(
@@ -198,10 +195,10 @@ class Evaluation(nn.Module):
         depth_min: torch.Tensor,
         depth_max: torch.Tensor,
         iter: int,
-        grid: torch.Tensor = None,
-        weight: torch.Tensor = None,
-        view_weights: torch.Tensor = None,
-    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+        grid: torch.Tensor,
+        weight: torch.Tensor,
+        view_weights: torch.Tensor = torch.empty(0),
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Forward method for adaptive evaluation
 
         Args:
@@ -235,18 +232,17 @@ class Evaluation(nn.Module):
         assert (
             num_src_features == num_src_projs
         ), "Patchmatch Evaluation: Different number of images and projection matrices"
-        if view_weights is not None:
+        if view_weights.numel() > 0:
             assert (
                 num_src_features == view_weights.size()[1]
             ), "Patchmatch Evaluation: Different number of images and view weights"
 
-        pixel_wise_weight_sum = 1e-5
-
+        # Change to a tensor with value 1e-5
+        pixel_wise_weight_sum = 1e-5 * torch.ones((batch, 1, 1, height, width), dtype=torch.float32, device=device)
         ref_feature = ref_feature.view(batch, self.G, feature_channel // self.G, height, width)
+        similarity_sum = torch.zeros((batch, self.G, num_depth, height, width), dtype=torch.float32, device=device)
 
-        similarity_sum = 0
-
-        if self.stage == 3 and view_weights is None:
+        if self.stage == 3 and view_weights.numel() == 0:
             view_weights_list = []
             for src_feature, src_proj in zip(src_features, src_projs):
 
@@ -265,19 +261,17 @@ class Evaluation(nn.Module):
                     similarity_sum += similarity * view_weight.unsqueeze(1)
                     pixel_wise_weight_sum += view_weight.unsqueeze(1)
 
-                del warped_feature, src_feature, src_proj, similarity, view_weight
-            del src_features, src_projs
             view_weights = torch.cat(view_weights_list, dim=1)  # [B,4,H,W], 4 is the number of source views
             # aggregated matching cost across all the source views
             similarity = similarity_sum.div_(pixel_wise_weight_sum)  # [B, G, Ndepth, H, W]
-            del ref_feature, pixel_wise_weight_sum, similarity_sum
+
             # adaptive spatial cost aggregation
             score = self.similarity_net(similarity, grid, weight)  # [B, G, Ndepth, H, W]
-            del similarity, grid, weight
 
             # apply softmax to get probability
-            softmax = nn.LogSoftmax(dim=1)
-            score = softmax(score)
+            # Either way seems to work here
+            score = self.softmax(score)
+            # score = torch.log_softmax(score, dim=1)
             score = torch.exp(score)
 
             # depth regression: expectation
@@ -290,9 +284,9 @@ class Evaluation(nn.Module):
                 warped_feature = differentiable_warping(src_feature, src_proj, ref_proj, depth_sample)
                 warped_feature = warped_feature.view(batch, self.G, feature_channel // self.G, num_depth, height, width)
                 similarity = (warped_feature * ref_feature.unsqueeze(3)).mean(2)
+
                 # reuse the pixel-wise view weight from first iteration of Patchmatch on stage 3
-                if view_weights is not None:
-                    view_weight = view_weights[:, i].unsqueeze(1)  # [B,1,H,W]
+                view_weight = view_weights[:, i].unsqueeze(1)  # [B,1,H,W]
                 i = i + 1
 
                 if self.training:
@@ -302,19 +296,13 @@ class Evaluation(nn.Module):
                     similarity_sum += similarity * view_weight.unsqueeze(1)
                     pixel_wise_weight_sum += view_weight.unsqueeze(1)
 
-                del warped_feature, src_feature, src_proj, similarity, view_weight
-            del src_features, src_projs
-
             # [B, G, Ndepth, H, W]
             similarity = similarity_sum.div_(pixel_wise_weight_sum)
-
-            del ref_feature, pixel_wise_weight_sum, similarity_sum
-
             score = self.similarity_net(similarity, grid, weight)  # [B, Ndepth, H, W]
-            del similarity, grid, weight
 
-            softmax = nn.LogSoftmax(dim=1)
-            score = softmax(score)
+            # Either way seems to work here
+            score = self.softmax(score)
+            # score = torch.log_softmax(score, dim=1)
             score = torch.exp(score)
 
             if self.stage == 1 and iter == self.iterations:
@@ -329,13 +317,13 @@ class Evaluation(nn.Module):
                 )
                 depth_sample = 1.0 / depth_sample
 
-                return depth_sample, score
+                return depth_sample, score, torch.empty(0)
 
             # depth regression: expectation
             else:
                 depth_sample = torch.sum(depth_sample * score, dim=1)
 
-                return depth_sample, score
+                return depth_sample, score, torch.empty(0)
 
 
 class PatchMatch(nn.Module):
@@ -387,20 +375,18 @@ class PatchMatch(nn.Module):
         self.evaluate_neighbors = evaluate_neighbors
         self.evaluation = Evaluation(self.G, self.stage, self.evaluate_neighbors, self.patchmatch_iteration)
         # adaptive propagation
-        if self.propagate_neighbors > 0:
-            # last iteration on stage 1 does not have propagation (photometric consistency filtering)
-            if not (self.stage == 1 and self.patchmatch_iteration == 1):
-                self.propa_conv = nn.Conv2d(
-                    in_channels=self.propa_num_feature,
-                    out_channels=2 * self.propagate_neighbors,
-                    kernel_size=3,
-                    stride=1,
-                    padding=self.dilation,
-                    dilation=self.dilation,
-                    bias=True,
-                )
-                nn.init.constant_(self.propa_conv.weight, 0.0)
-                nn.init.constant_(self.propa_conv.bias, 0.0)
+        # last iteration on stage 1 does not have propagation, but we still define this for TorchScript export compatibility
+        self.propa_conv = nn.Conv2d(
+            in_channels=self.propa_num_feature,
+            out_channels=max(2 * self.propagate_neighbors, 1),
+            kernel_size=3,
+            stride=1,
+            padding=self.dilation,
+            dilation=self.dilation,
+            bias=True,
+        )
+        nn.init.constant_(self.propa_conv.weight, 0.0)
+        nn.init.constant_(self.propa_conv.bias, 0.0)
 
         # adaptive spatial cost aggregation (adaptive evaluation)
         self.eval_conv = nn.Conv2d(
@@ -417,7 +403,7 @@ class PatchMatch(nn.Module):
         self.feature_weight_net = FeatureWeightNet(num_feature, self.evaluate_neighbors, self.G)
 
     def get_propagation_grid(
-        self, batch: int, height: int, width: int, offset: torch.Tensor, device: torch.device, img: torch.Tensor = None
+        self, batch: int, height: int, width: int, offset: torch.Tensor, device: torch.device, img: torch.Tensor
     ) -> torch.Tensor:
         """Compute the offset for adaptive propagation
 
@@ -486,18 +472,21 @@ class PatchMatch(nn.Module):
 
         xy = torch.cat(xy_list, dim=2)  # [B, 2, 9, H*W]
 
-        del xy_list, x_grid, y_grid
+        del xy_list
+        del x_grid
+        del y_grid
 
         x_normalized = xy[:, 0, :, :] / ((width - 1) / 2) - 1
         y_normalized = xy[:, 1, :, :] / ((height - 1) / 2) - 1
         del xy
         grid = torch.stack((x_normalized, y_normalized), dim=3)  # [B, 9, H*W, 2]
-        del x_normalized, y_normalized
+        del x_normalized
+        del y_normalized
         grid = grid.view(batch, self.propagate_neighbors * height, width, 2)
         return grid
 
     def get_evaluation_grid(
-        self, batch: int, height: int, width: int, offset: torch.Tensor, device: torch.device, img: torch.Tensor = None
+        self, batch: int, height: int, width: int, offset: torch.Tensor, device: torch.device, img: torch.Tensor
     ) -> torch.Tensor:
         """Compute the offsets for adaptive spatial cost aggregation in adaptive evaluation
 
@@ -568,12 +557,15 @@ class PatchMatch(nn.Module):
 
         xy = torch.cat(xy_list, dim=2)  # [B, 2, 9, H*W]
 
-        del xy_list, x_grid, y_grid
+        del xy_list
+        del x_grid
+        del y_grid
         x_normalized = xy[:, 0, :, :] / ((width - 1) / 2) - 1
         y_normalized = xy[:, 1, :, :] / ((height - 1) / 2) - 1
         del xy
         grid = torch.stack((x_normalized, y_normalized), dim=3)  # [B, 9, H*W, 2]
-        del x_normalized, y_normalized
+        del x_normalized
+        del y_normalized
         grid = grid.view(batch, len(original_offset) * height, width, 2)
         return grid
 
@@ -585,10 +577,10 @@ class PatchMatch(nn.Module):
         src_projs: List[torch.Tensor],
         depth_min: torch.Tensor,
         depth_max: torch.Tensor,
-        depth: torch.Tensor = None,
-        img: torch.Tensor = None,
-        view_weights: torch.Tensor = None,
-    ) -> Tuple[List[torch.Tensor], torch.Tensor, Optional[torch.Tensor]]:
+        depth: torch.Tensor,
+        img: torch.Tensor,
+        view_weights: torch.Tensor = torch.empty(0),
+    ) -> Tuple[List[torch.Tensor], torch.Tensor, torch.Tensor]:
         """Forward method for PatchMatch
 
         Args:
@@ -608,7 +600,7 @@ class PatchMatch(nn.Module):
         Returns:
             depth_samples: list of depth maps from each patchmatch iteration, Niter * (B,1,H,W)
             score: evaluted probabilities, (B,Ndepth,H,W)
-            view_weights(optional): Tensor to store weights of source views, in shape of (B,Nview-1,H,W),
+            view_weights: Tensor to store weights of source views, in shape of (B,Nview-1,H,W),
                 Nview-1 represents the number of source views
         """
         depth_samples = []
@@ -617,12 +609,12 @@ class PatchMatch(nn.Module):
         batch, _, height, width = ref_feature.size()
 
         # the learned additional 2D offsets for adaptive propagation
-        if self.propagate_neighbors > 0:
+        propa_grid = torch.empty(0)
+        if self.propagate_neighbors > 0 and not (self.stage == 1 and self.patchmatch_iteration == 1):
             # last iteration on stage 1 does not have propagation (photometric consistency filtering)
-            if not (self.stage == 1 and self.patchmatch_iteration == 1):
-                propa_offset = self.propa_conv(ref_feature)
-                propa_offset = propa_offset.view(batch, 2 * self.propagate_neighbors, height * width)
-                propa_grid = self.get_propagation_grid(batch, height, width, propa_offset, device, img)
+            propa_offset = self.propa_conv(ref_feature)
+            propa_offset = propa_offset.view(batch, 2 * self.propagate_neighbors, height * width)
+            propa_grid = self.get_propagation_grid(batch, height, width, propa_offset, device, img)
 
         # the learned additional 2D offsets for adaptive spatial cost aggregation (adaptive evaluation)
         eval_offset = self.eval_conv(ref_feature)
@@ -715,7 +707,7 @@ class PatchMatch(nn.Module):
             weight = weight / torch.sum(weight, dim=2).unsqueeze(2)
 
             # evaluation, outputs regressed depth map
-            depth_sample, score = self.evaluation(
+            depth_sample, score, _ = self.evaluation(
                 ref_feature=ref_feature,
                 src_features=src_features,
                 ref_proj=ref_proj,
@@ -764,7 +756,7 @@ class PatchMatch(nn.Module):
             weight = weight / torch.sum(weight, dim=2).unsqueeze(2)
 
             # evaluation, outputs regressed depth map
-            depth_sample, score = self.evaluation(
+            depth_sample, score, _ = self.evaluation(
                 ref_feature=ref_feature,
                 src_features=src_features,
                 ref_proj=ref_proj,
@@ -927,8 +919,7 @@ def depth_weight(
     x1 = torch.clamp(x1, min=0, max=4)
     # sigmoid output approximate to 1 when x=4
     x1 = (-x1 + 2) * 2
-    output = nn.Sigmoid()
-    x1 = output(x1)
+    x1 = torch.sigmoid(x1)
 
     return x1.detach()
 
