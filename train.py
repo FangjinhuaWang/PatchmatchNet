@@ -1,20 +1,15 @@
 import argparse
 import os
-import torch
 import torch.nn as nn
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torch.autograd import Variable
-import torch.nn.functional as F
-import numpy as np
 import time
 from torch.utils.tensorboard import SummaryWriter
 from datasets import find_dataset_def
 from models import *
 from utils import *
-import gc
 import sys
 import datetime
 
@@ -32,7 +27,8 @@ parser.add_argument('--vallist', help='validation list')
 
 parser.add_argument('--epochs', type=int, default=16, help='number of epochs to train')
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
-parser.add_argument('--lrepochs', type=str, default="10,12,14:2", help='epoch ids to downscale lr and the downscale rate')
+parser.add_argument('--lrepochs', type=str, default="10,12,14:2",
+                    help='epoch ids to downscale lr and the downscale rate')
 parser.add_argument('--wd', type=float, default=0.0, help='weight decay')
 
 parser.add_argument('--batch_size', type=int, default=12, help='train batch size')
@@ -44,23 +40,23 @@ parser.add_argument('--summary_freq', type=int, default=20, help='print and summ
 parser.add_argument('--save_freq', type=int, default=1, help='save checkpoint frequency')
 parser.add_argument('--seed', type=int, default=1, metavar='S', help='random seed')
 
-parser.add_argument('--patchmatch_iteration', nargs='+', type=int, default=[1,2,2], 
-        help='num of iteration of patchmatch on stages 1,2,3')
-parser.add_argument('--patchmatch_num_sample', nargs='+', type=int, default=[8,8,16], 
-        help='num of generated samples in local perturbation on stages 1,2,3')
+parser.add_argument('--patchmatch_iteration', nargs='+', type=int, default=[1, 2, 2],
+                    help='num of iteration of patchmatch on stages 1,2,3')
+parser.add_argument('--patchmatch_num_sample', nargs='+', type=int, default=[8, 8, 16],
+                    help='num of generated samples in local perturbation on stages 1,2,3')
 parser.add_argument('--patchmatch_interval_scale', nargs='+', type=float, default=[0.005, 0.0125, 0.025], 
-        help='normalized interval in inverse depth range to generate samples in local perturbation')
-parser.add_argument('--patchmatch_range', nargs='+', type=int, default=[6,4,2], 
-        help='fixed offset of sampling points for propogation of patchmatch on stages 1,2,3')
-parser.add_argument('--propagate_neighbors', nargs='+', type=int, default=[0,8,16], 
-        help='num of neighbors for adaptive propagation on stages 1,2,3')
-parser.add_argument('--evaluate_neighbors', nargs='+', type=int, default=[9,9,9], 
-        help='num of neighbors for adaptive matching cost aggregation of adaptive evaluation on stages 1,2,3')
+                    help='normalized interval in inverse depth range to generate samples in local perturbation')
+parser.add_argument('--patchmatch_range', nargs='+', type=int, default=[6, 4, 2],
+                    help='fixed offset of sampling points for propogation of patchmatch on stages 1,2,3')
+parser.add_argument('--propagate_neighbors', nargs='+', type=int, default=[0, 8, 16],
+                    help='num of neighbors for adaptive propagation on stages 1,2,3')
+parser.add_argument('--evaluate_neighbors', nargs='+', type=int, default=[9, 9, 9],
+                    help='num of neighbors for adaptive matching cost aggregation of adaptive evaluation on stages 1,2,3')
 
 
 # parse arguments and check
 args = parser.parse_args()
-if args.resume: # store_true means set the variable as "True"
+if args.resume:  # store_true means set the variable as "True"
     assert args.mode == "train"
     assert args.loadckpt is None
 if args.valpath is None:
@@ -85,18 +81,21 @@ print_args(args)
 
 # dataset, dataloader
 MVSDataset = find_dataset_def(args.dataset)
-if args.dataset == 'dtu_yao':
-    train_dataset = MVSDataset(args.trainpath, args.trainlist, "train", 5, robust_train=True)
-    test_dataset = MVSDataset(args.valpath, args.vallist, "val", 5,  robust_train=False)
+train_dataset = MVSDataset(args.trainpath, args.trainlist, "train", 5, robust_train=True)
+test_dataset = MVSDataset(args.valpath, args.vallist, "val", 5,  robust_train=False)
 
 TrainImgLoader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_workers=8, drop_last=True)
 TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
 
 # model, optimizer
-model = PatchmatchNet(patchmatch_interval_scale=args.patchmatch_interval_scale,
-                propagation_range = args.patchmatch_range, patchmatch_iteration=args.patchmatch_iteration, 
-                patchmatch_num_sample = args.patchmatch_num_sample, 
-                propagate_neighbors=args.propagate_neighbors, evaluate_neighbors=args.evaluate_neighbors)
+model = PatchmatchNet(
+    patchmatch_interval_scale=args.patchmatch_interval_scale,
+    propagation_range=args.patchmatch_range,
+    patchmatch_iteration=args.patchmatch_iteration,
+    patchmatch_num_sample=args.patchmatch_num_sample,
+    propagate_neighbors=args.propagate_neighbors,
+    evaluate_neighbors=args.evaluate_neighbors
+)
 if args.mode in ["train", "val"]:
     model = nn.DataParallel(model)
 model.cuda()
@@ -188,7 +187,6 @@ def train():
                                                                                      time.time() - start_time))
         save_scalars(logger, 'fulltest', avg_test_scalars.mean(), global_step)
         print("avg_test_scalars:", avg_test_scalars.mean())
-        # gc.collect()
 
 
 def test():
@@ -222,26 +220,28 @@ def train_sample(sample, detailed_summary=False):
     optimizer.step()
 
     scalar_outputs = {"loss": loss}
-    image_outputs = {"depth_refined_stage_0": depth_est * mask['stage_0'],
-                    "depth_gt_stage_0": depth_gt['stage_0'] * mask['stage_0'],
-                    "depth_patchmatch_stage_1": depth_patchmatch[1][-1] * mask['stage_1'],
-                    "depth_patchmatch_stage_2": depth_patchmatch[2][-1] * mask['stage_2'],
-                    "depth_patchmatch_stage_3": depth_patchmatch[3][-1] * mask['stage_3'],
-                     "ref_img": sample["imgs"]['stage_0'][:, 0],
-                     }
+    image_outputs = {
+        "depth_refined_stage_0": depth_est * mask['stage_0'],
+        "depth_gt_stage_0": depth_gt['stage_0'] * mask['stage_0'],
+        "depth_patchmatch_stage_1": depth_patchmatch[1][-1] * mask['stage_1'],
+        "depth_patchmatch_stage_2": depth_patchmatch[2][-1] * mask['stage_2'],
+        "depth_patchmatch_stage_3": depth_patchmatch[3][-1] * mask['stage_3'],
+        "ref_img": sample["imgs"]['stage_0'][:, 0]
+    }
     if detailed_summary:
         image_outputs["errormap_refined_stage_0"] = (depth_est - depth_gt['stage_0']).abs() * mask['stage_0']
         image_outputs["errormap_patchmatch_stage_1"] = (depth_patchmatch[1][-1] - depth_gt['stage_1']).abs() * mask['stage_1']
         image_outputs["errormap_patchmatch_stage_2"] = (depth_patchmatch[2][-1] - depth_gt['stage_2']).abs() * mask['stage_2']
         image_outputs["errormap_patchmatch_stage_3"] = (depth_patchmatch[3][-1] - depth_gt['stage_3']).abs() * mask['stage_3']
 
-    scalar_outputs["abs_depth_error_refined_stage_0"] = AbsDepthError_metrics(depth_est, depth_gt['stage_0'], mask['stage_0'] > 0.5)
-    scalar_outputs["abs_depth_error_patchmatch_stage_3"] = AbsDepthError_metrics(depth_patchmatch[3][-1], 
-                                                        depth_gt['stage_3'], mask['stage_3'] > 0.5)
-    scalar_outputs["abs_depth_error_patchmatch_stage_2"] = AbsDepthError_metrics(depth_patchmatch[2][-1], 
-                                                        depth_gt['stage_2'], mask['stage_2'] > 0.5)
-    scalar_outputs["abs_depth_error_patchmatch_stage_1"] = AbsDepthError_metrics(depth_patchmatch[1][-1], 
-                                                        depth_gt['stage_1'], mask['stage_1'] > 0.5)
+    scalar_outputs["abs_depth_error_refined_stage_0"] = AbsDepthError_metrics(
+        depth_est, depth_gt['stage_0'], mask['stage_0'] > 0.5)
+    scalar_outputs["abs_depth_error_patchmatch_stage_3"] = AbsDepthError_metrics(
+        depth_patchmatch[3][-1], depth_gt['stage_3'], mask['stage_3'] > 0.5)
+    scalar_outputs["abs_depth_error_patchmatch_stage_2"] = AbsDepthError_metrics(
+        depth_patchmatch[2][-1], depth_gt['stage_2'], mask['stage_2'] > 0.5)
+    scalar_outputs["abs_depth_error_patchmatch_stage_1"] = AbsDepthError_metrics(
+        depth_patchmatch[1][-1], depth_gt['stage_1'], mask['stage_1'] > 0.5)
     # threshold = 1mm
     scalar_outputs["thres1mm_error"] = Thres_metrics(depth_est, depth_gt['stage_0'], mask['stage_0'] > 0.5, 1)
     # threshold = 2mm
@@ -261,32 +261,34 @@ def test_sample(sample, detailed_summary=True):
     depth_gt = sample_cuda["depth"]
     mask = sample_cuda["mask"]
     
-    depth_est, _, depth_patchmatch = model(sample_cuda["imgs"], sample_cuda["proj_matrices"],
-                                           sample_cuda["depth_min"], sample_cuda["depth_max"])
+    depth_est, _, depth_patchmatch = model(
+        sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_min"], sample_cuda["depth_max"])
 
     depth_patchmatch[0] = [depth_est]
     loss = model_loss(depth_patchmatch, depth_gt, mask)
     scalar_outputs = {"loss": loss}
-    image_outputs = {"depth_refined_stage_0": depth_est * mask['stage_0'],
-                    "depth_gt_stage_0": depth_gt['stage_0'] * mask['stage_0'],
-                    "depth_patchmatch_stage_1": depth_patchmatch[1][-1] * mask['stage_1'],
-                    "depth_patchmatch_stage_2": depth_patchmatch[2][-1] * mask['stage_2'],
-                    "depth_patchmatch_stage_3": depth_patchmatch[3][-1] * mask['stage_3'],
-                     "ref_img": sample["imgs"]['stage_0'][:, 0],
-                     }
+    image_outputs = {
+        "depth_refined_stage_0": depth_est * mask['stage_0'],
+        "depth_gt_stage_0": depth_gt['stage_0'] * mask['stage_0'],
+        "depth_patchmatch_stage_1": depth_patchmatch[1][-1] * mask['stage_1'],
+        "depth_patchmatch_stage_2": depth_patchmatch[2][-1] * mask['stage_2'],
+        "depth_patchmatch_stage_3": depth_patchmatch[3][-1] * mask['stage_3'],
+        "ref_img": sample["imgs"]['stage_0'][:, 0]
+    }
     if detailed_summary:
         image_outputs["errormap_refined_stage_0"] = (depth_est - depth_gt['stage_0']).abs() * mask['stage_0']
         image_outputs["errormap_patchmatch_stage_1"] = (depth_patchmatch[1][-1] - depth_gt['stage_1']).abs() * mask['stage_1']
         image_outputs["errormap_patchmatch_stage_2"] = (depth_patchmatch[2][-1] - depth_gt['stage_2']).abs() * mask['stage_2']
         image_outputs["errormap_patchmatch_stage_3"] = (depth_patchmatch[3][-1] - depth_gt['stage_3']).abs() * mask['stage_3']
 
-    scalar_outputs["abs_depth_error_refined_stage_0"] = AbsDepthError_metrics(depth_est, depth_gt['stage_0'], mask['stage_0'] > 0.5)
-    scalar_outputs["abs_depth_error_patchmatch_stage_3"] = AbsDepthError_metrics(depth_patchmatch[3][-1], 
-                                                        depth_gt['stage_3'], mask['stage_3'] > 0.5)
-    scalar_outputs["abs_depth_error_patchmatch_stage_2"] = AbsDepthError_metrics(depth_patchmatch[2][-1], 
-                                                        depth_gt['stage_2'], mask['stage_2'] > 0.5)
-    scalar_outputs["abs_depth_error_patchmatch_stage_1"] = AbsDepthError_metrics(depth_patchmatch[1][-1], 
-                                                        depth_gt['stage_1'], mask['stage_1'] > 0.5)
+    scalar_outputs["abs_depth_error_refined_stage_0"] = AbsDepthError_metrics(
+        depth_est, depth_gt['stage_0'], mask['stage_0'] > 0.5)
+    scalar_outputs["abs_depth_error_patchmatch_stage_3"] = AbsDepthError_metrics(
+        depth_patchmatch[3][-1], depth_gt['stage_3'], mask['stage_3'] > 0.5)
+    scalar_outputs["abs_depth_error_patchmatch_stage_2"] = AbsDepthError_metrics(
+        depth_patchmatch[2][-1], depth_gt['stage_2'], mask['stage_2'] > 0.5)
+    scalar_outputs["abs_depth_error_patchmatch_stage_1"] = AbsDepthError_metrics(
+        depth_patchmatch[1][-1], depth_gt['stage_1'], mask['stage_1'] > 0.5)
     # threshold = 1mm
     scalar_outputs["thres1mm_error"] = Thres_metrics(depth_est, depth_gt['stage_0'], mask['stage_0'] > 0.5, 1)
     # threshold = 2mm
@@ -304,4 +306,3 @@ if __name__ == '__main__':
         train()
     elif args.mode == "val":
         test()
-    
