@@ -63,7 +63,6 @@ class MVSDataset(Dataset):
     def read_img(self, filename):
         img = Image.open(filename)
         # scale 0~255 to 0~1
-        
         np_img = np.array(img, dtype=np.float32) / 255.
         h, w, _ = np_img.shape
         np_img_ms = {
@@ -90,38 +89,34 @@ class MVSDataset(Dataset):
 
         return hr_img_crop
 
-    def read_mask_hr(self, filename):
+    def read_mask(self, filename):
         img = Image.open(filename)
         np_img = np.array(img, dtype=np.float32)
         np_img = (np_img > 10).astype(np.float32)
-        np_img = self.prepare_img(np_img)
+        return np_img
 
-        h, w = np_img.shape
-        np_img_ms = {
-            "stage_3": cv2.resize(np_img, (w//8, h//8), interpolation=cv2.INTER_NEAREST),
-            "stage_2": cv2.resize(np_img, (w//4, h//4), interpolation=cv2.INTER_NEAREST),
-            "stage_1": cv2.resize(np_img, (w//2, h//2), interpolation=cv2.INTER_NEAREST),
-            "stage_0": np_img
-        }
-        return np_img_ms
-        
-
-    def read_depth_hr(self, filename):
-        
+    def read_depth_mask(self, filename, mask_filename, depth_min, depth_max):
         depth_hr = np.array(read_pfm(filename)[0], dtype=np.float32)
         depth_hr = np.squeeze(depth_hr,2)
         depth_lr = self.prepare_img(depth_hr)
 
-        h, w = depth_lr.shape
-        depth_lr_ms = {
-            
-            "stage_3": cv2.resize(depth_lr, (w//8, h//8), interpolation=cv2.INTER_NEAREST),
-            "stage_2": cv2.resize(depth_lr, (w//4, h//4), interpolation=cv2.INTER_NEAREST),
-            "stage_1": cv2.resize(depth_lr, (w//2, h//2), interpolation=cv2.INTER_NEAREST),
-            "stage_0": depth_lr
-        }
-        return depth_lr_ms
+        mask = self.read_mask(mask_filename)
+        mask = self.prepare_img(mask)
+        mask = mask.astype(np.bool_)
+        mask = mask & (depth_lr>=depth_min) & (depth_lr<=depth_max)
+        mask = mask.astype(np.float32)
 
+        h, w = depth_lr.shape
+        depth_lr_ms = {}
+        mask_ms = {}
+
+        for i in range(self.stages):
+            depth_cur = cv2.resize(depth_lr, (w//(2**i), h//(2**i)), interpolation=cv2.INTER_NEAREST)
+            mask_cur = cv2.resize(mask, (w//(2**i), h//(2**i)), interpolation=cv2.INTER_NEAREST)
+            depth_lr_ms[f"stage_{i}"] = depth_cur
+            mask_ms[f"stage_{i}"] = mask_cur
+
+        return depth_lr_ms, mask_ms
 
     def __getitem__(self, idx):
         meta = self.metas[idx]
@@ -193,9 +188,7 @@ class MVSDataset(Dataset):
             if i == 0:  # reference view
                 depth_min = depth_min_
                 depth_max = depth_max_
-                
-                mask = self.read_mask_hr(mask_filename_hr)
-                depth = self.read_depth_hr(depth_filename_hr)
+                depth, mask = self.read_depth_mask(depth_filename_hr, mask_filename_hr, depth_min, depth_max)
                 for l in range(self.stages):
                     mask[f'stage_{l}'] = np.expand_dims(mask[f'stage_{l}'],2)
                     mask[f'stage_{l}'] = mask[f'stage_{l}'].transpose([2,0,1])

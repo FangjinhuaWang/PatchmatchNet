@@ -2,6 +2,9 @@
 official source code of paper 'PatchmatchNet: Learned Multi-View Patchmatch Stereo'
 ![](imgs/structure_teaser.jpg)
 
+## Updates
+27.09.2021: The codes now allows for Torchscript export.
+
 ## Introduction
 PatchmatchNet is a novel cascade formulation of learning-based Patchmatch which aims at decreasing memory consumption and computation time for high-resolution multi-view stereo. If you find this project useful for your research, please cite: 
 
