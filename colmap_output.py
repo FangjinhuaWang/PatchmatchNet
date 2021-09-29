@@ -35,20 +35,20 @@ def create_output_dirs(path: str):
 
 def copy_maps(input_path: str, results_path: str, output_path: str):
     shutil.copytree(os.path.join(input_path, "images"), os.path.join(output_path, "images"), dirs_exist_ok=True)
-    output_type = os.path.splitext(os.listdir(os.path.join(results_path, "depth_est"))[0])[1]
-    if output_type == ".bin":
-        shutil.copytree(os.path.join(results_path, "depth_est"), os.path.join(output_path, "stereo/depth_maps"),
-                        dirs_exist_ok=True)
-        shutil.copytree(os.path.join(results_path, "confidence"), os.path.join(output_path, "stereo/confidence_maps"),
-                        dirs_exist_ok=True)
-    else:
-        # If output is .pfm we need to read and convert to colmap .bin
-        for map_file in os.listdir(os.path.join(results_path, "depth_est")):
-            name, ext = os.path.splitext(map_file)
-            save_map(os.path.join(output_path, "stereo/depth_maps", name + ".bin"),
-                     read_map(os.path.join(results_path, "depth_est", map_file)))
-            save_map(os.path.join(output_path, "stereo/confidence_maps", name + ".bin"),
-                     read_map(os.path.join(results_path, "confidence", map_file)))
+    ext = os.path.splitext(os.listdir(os.path.join(results_path, "depth_est"))[0])[1]
+    for image_file in os.listdir(os.path.join(input_path, "images")):
+        name, _ = os.path.splitext(image_file)
+        depth_in_path = os.path.join(results_path, "depth_est", name + ext)
+        confidence_in_path = os.path.join(results_path, "confidence", name + ext)
+        depth_out_path = os.path.join(output_path, "stereo/depth_maps", image_file + ".geometric.bin")
+        confidence_out_path = os.path.join(output_path, "stereo/confidence_maps", image_file + ".geometric.bin")
+        if ext == ".bin":
+            shutil.copy(depth_in_path, depth_out_path)
+            shutil.copy(confidence_in_path, confidence_out_path)
+        else:
+            # If output is .pfm we need to read and convert to colmap .bin
+            save_map(depth_out_path, read_map(depth_in_path))
+            save_map(confidence_out_path, read_map(confidence_in_path))
 
 
 def read_reconstruction(path: str) -> Tuple[List[Camera], List[Image], List[Tuple[int, List[int]]]]:
