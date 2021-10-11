@@ -115,7 +115,11 @@ class Propagation(nn.Module):
         batch, num_depth, height, width = depth_sample.size()
         num_neighbors = grid.size()[1] // height
         propagate_depth_sample = F.grid_sample(
-            depth_sample[:, num_depth // 2, :, :].unsqueeze(1), grid, mode="bilinear", padding_mode="border"
+            depth_sample[:, num_depth // 2, :, :].unsqueeze(1),
+            grid,
+            mode="bilinear",
+            padding_mode="border",
+            align_corners=False
         ).view(batch, num_neighbors, height, width)
         return torch.sort(torch.cat((depth_sample, propagate_depth_sample), dim=1), dim=1)[0]
 
@@ -186,7 +190,7 @@ class Evaluation(nn.Module):
 
         # Change to a tensor with value 1e-5
         pixel_wise_weight_sum = 1e-5 * torch.ones((batch, 1, 1, height, width), dtype=torch.float32, device=device)
-        ref_feature = ref_feature.view(batch, self.G, feature_channel // self.G, height, width)
+        ref_feature = ref_feature.view(batch, self.G, feature_channel // self.G, 1, height, width)
         similarity_sum = torch.zeros((batch, self.G, num_depth, height, width), dtype=torch.float32, device=device)
 
         i = 0
@@ -520,7 +524,8 @@ class PatchMatch(nn.Module):
                 is_inverse=is_inverse,
             )
 
-            depth_samples.append(depth_sample.unsqueeze(1))
+            depth_sample = depth_sample.unsqueeze(1)
+            depth_samples.append(depth_sample)
 
         return depth_samples, score, view_weights
 
@@ -566,7 +571,8 @@ class SimilarityNet(nn.Module):
             input=self.similarity(self.conv1(self.conv0(x1))).squeeze(1),
             grid=grid,
             mode="bilinear",
-            padding_mode="border"
+            padding_mode="border",
+            align_corners=False
         ).view(batch, num_depth, num_neighbors, height, width)
 
         return torch.sum(x1 * weight, dim=2)
@@ -608,7 +614,7 @@ class FeatureWeightNet(nn.Module):
         batch, feature_channel, height, width = ref_feature.size()
 
         weight = F.grid_sample(
-            ref_feature, grid, mode="bilinear", padding_mode="border"
+            ref_feature, grid, mode="bilinear", padding_mode="border", align_corners=False
         ).view(batch, self.G, feature_channel // self.G, self.neighbors, height, width)
 
         # [B,G,C//G,H,W]
@@ -651,7 +657,9 @@ def depth_weight(
     del depth_sample
     x = (x - inverse_depth_max.view(batch, 1, 1, 1)) / (inverse_depth_min - inverse_depth_max).view(batch, 1, 1, 1)
 
-    x1 = F.grid_sample(x, grid, mode="bilinear", padding_mode="border").view(batch, num_depth, neighbors, height, width)
+    x1 = F.grid_sample(
+        x, grid, mode="bilinear", padding_mode="border", align_corners=False
+    ).view(batch, num_depth, neighbors, height, width)
     del grid
 
     # [B,Ndepth,N_neighbors,H,W]
