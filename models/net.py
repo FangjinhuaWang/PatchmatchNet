@@ -1,10 +1,7 @@
-
 from typing import Dict, List, Tuple
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from .module import ConvBnReLU, depth_regression
 from .patchmatch import PatchMatch
 
@@ -58,12 +55,13 @@ class FeatureNet(nn.Module):
         conv10 = self.conv10(self.conv9(self.conv8(conv7)))
 
         output_feature[3] = self.output1(conv10)
-        intra_feat = F.interpolate(conv10, scale_factor=2.0, mode="bilinear") + self.inner1(conv7)
+        intra_feat = F.interpolate(conv10, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner1(conv7)
         del conv7
         del conv10
 
         output_feature[2] = self.output2(intra_feat)
-        intra_feat = F.interpolate(intra_feat, scale_factor=2.0, mode="bilinear") + self.inner2(conv4)
+        intra_feat = F.interpolate(
+            intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(conv4)
         del conv4
 
         output_feature[1] = self.output3(intra_feat)

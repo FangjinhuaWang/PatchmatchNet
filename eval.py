@@ -73,7 +73,7 @@ def save_depth():
         propagate_neighbors=args.propagate_neighbors,
         evaluate_neighbors=args.evaluate_neighbors
     )
-    # model = nn.DataParallel(model)
+    model = nn.DataParallel(model)
     model.cuda()
 
     # load checkpoint file specified by args.loadckpt
