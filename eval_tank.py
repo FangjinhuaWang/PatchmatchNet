@@ -191,7 +191,8 @@ def filter_depth(
         ref_intrinsics[0] *= img_wh[0]/original_w
         ref_intrinsics[1] *= img_wh[1]/original_h
         # load the reference image
-        ref_img, _, _ = read_image(os.path.join(scan_folder, 'images/{:0>8}.jpg'.format(ref_view)), max(img_wh))
+        # ref_img, _, _ = read_image(os.path.join(scan_folder, 'images/{:0>8}.jpg'.format(ref_view)), max(img_wh))
+        ref_img, _, _ = read_image(os.path.join(scan_folder, 'images/{:0>8}.jpg'.format(ref_view)), img_wh)
         
         # load the estimated depth of the reference view
         ref_depth_est = read_map(os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(ref_view)))

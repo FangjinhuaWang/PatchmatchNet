@@ -68,7 +68,8 @@ class MVSDataset(Dataset):
             img_filename = os.path.join(self.datapath, self.split, scan, f'images/{vid:08d}.jpg')
             proj_mat_filename = os.path.join(self.datapath, self.split, scan, f'cams_1/{vid:08d}_cam.txt')
             
-            image, _, _ = read_image(img_filename, max(self.img_wh))
+            # image, _, _ = read_image(img_filename, max(self.img_wh))
+            image, _, _ = read_image(img_filename, self.img_wh)
             imgs_0.append(image)
             imgs_1.append(cv2.resize(image, (self.img_wh[0]//2, self.img_wh[1]//2), interpolation=cv2.INTER_LINEAR))
             imgs_2.append(cv2.resize(image, (self.img_wh[0]//4, self.img_wh[1]//4), interpolation=cv2.INTER_LINEAR))

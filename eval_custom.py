@@ -184,8 +184,10 @@ def filter_depth(
     for ref_view, src_views in pair_data:
         
         # load the reference image
+        # ref_img, original_h, original_w = read_image(
+        #     os.path.join(scan_folder, 'images/{:0>8}.jpg'.format(ref_view)), max(img_wh))
         ref_img, original_h, original_w = read_image(
-            os.path.join(scan_folder, 'images/{:0>8}.jpg'.format(ref_view)), max(img_wh))
+            os.path.join(scan_folder, 'images/{:0>8}.jpg'.format(ref_view)), img_wh)
         ref_intrinsics, ref_extrinsics, _ = read_cam_file(
             os.path.join(scan_folder, 'cams/{:0>8}_cam.txt'.format(ref_view)))[0:2]
         ref_intrinsics[0] *= img_wh[0]/original_w
