@@ -12,11 +12,11 @@ def prepare_img(hr_img: np.ndarray) -> np.ndarray:
     # original w,h: 1600, 1200; downsample -> 800, 600 ; crop -> 640, 512
     # downsample
     h, w = hr_img.shape
-    hr_img_ds = cv2.resize(hr_img, (w//2, h//2), interpolation=cv2.INTER_NEAREST)
+    hr_img_ds = cv2.resize(hr_img, (w // 2, h // 2), interpolation=cv2.INTER_NEAREST)
     # crop
     h, w = hr_img_ds.shape
     target_h, target_w = 512, 640
-    start_h, start_w = (h - target_h)//2, (w - target_w)//2
+    start_h, start_w = (h - target_h) // 2, (w - target_w) // 2
     hr_img_crop = hr_img_ds[start_h: start_h + target_h, start_w: start_w + target_w]
 
     return np.expand_dims(hr_img_crop, 2).transpose([2, 0, 1])
@@ -58,7 +58,7 @@ class MVSDataset(Dataset):
     def __getitem__(self, idx):
         meta = self.metas[idx]
         scan, light_idx, ref_view, src_views = meta
-        
+
         # robust training strategy
         if self.robust_train:
             num_src_views = len(src_views)
@@ -103,10 +103,10 @@ class MVSDataset(Dataset):
         extrinsics = np.stack(extrinsics)
 
         # data is numpy array
-        return {"images": images,               # [N][3*H0*W0]
-                "intrinsics": intrinsics,       # N*3*3
-                "extrinsics": extrinsics,       # N*4*4
-                "depth": depth,                 # 1*H0*W0
-                "depth_min": depth_min,         # scalar
-                "depth_max": depth_max,         # scalar
-                "mask": mask}                   # 1*H0*W0
+        return {"images": images,  # [N][3*H0*W0]
+                "intrinsics": intrinsics,  # N*3*3
+                "extrinsics": extrinsics,  # N*4*4
+                "depth": depth,  # 1*H0*W0
+                "depth_min": depth_min,  # scalar
+                "depth_max": depth_max,  # scalar
+                "mask": mask}  # 1*H0*W0
