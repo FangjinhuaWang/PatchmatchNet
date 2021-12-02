@@ -127,12 +127,12 @@ class PatchmatchNet(nn.Module):
 
     def __init__(
         self,
-        patchmatch_interval_scale: List[float] = [0.005, 0.0125, 0.025],
-        propagation_range: List[int] = [6, 4, 2],
-        patchmatch_iteration: List[int] = [1, 2, 2],
-        patchmatch_num_sample: List[int] = [8, 8, 16],
-        propagate_neighbors: List[int] = [0, 8, 16],
-        evaluate_neighbors: List[int] = [9, 9, 9],
+        patchmatch_interval_scale: List[float],
+        propagation_range: List[int],
+        patchmatch_iteration: List[int],
+        patchmatch_num_sample: List[int],
+        propagate_neighbors: List[int],
+        evaluate_neighbors: List[int],
     ) -> None:
         """Initialize modules in PatchmatchNet
 
@@ -175,43 +175,36 @@ class PatchmatchNet(nn.Module):
 
     def forward(
         self,
-        images: Dict[str, torch.Tensor],
-        proj_matrices: Dict[str, torch.Tensor],
+        images: List[torch.Tensor],
+        intrinsics: torch.Tensor,
+        extrinsics: torch.Tensor,
         depth_min: torch.Tensor,
         depth_max: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, Dict[int, List[torch.Tensor]]]:
         """Forward method for PatchMatchNet
 
         Args:
-            images: different stages of images (B, 3, H, W) stored in the dictionary
-            proj_matrices: different stages of camera projection matrices (B, 4, 4) stored in the dictionary
-            depth_min: minimum virtual depth (B, )
-            depth_max: maximum virtual depth (B, )
+            images: N images (B, 3, H, W) stored in list
+            intrinsics: intrinsic 3x3 matrices for all images (B, N, 3, 3)
+            extrinsics: extrinsic 4x4 matrices for all images (B, N, 4, 4)
+            depth_min: minimum virtual depth (B, 1)
+            depth_max: maximum virtual depth (B, 1)
 
         Returns:
             output tuple of PatchMatchNet, containing refined depthmap, depth patchmatch, and photometric confidence.
         """
-        imgs_0 = torch.unbind(images["stage_0"], 1)
-        del images
-
-        ref_image = imgs_0[0]
-
-        proj_mtx = {
-            0: torch.unbind(proj_matrices["stage_0"].float(), 1),
-            1: torch.unbind(proj_matrices["stage_1"].float(), 1),
-            2: torch.unbind(proj_matrices["stage_2"].float(), 1),
-            3: torch.unbind(proj_matrices["stage_3"].float(), 1)
-        }
-        del proj_matrices
-
-        assert len(imgs_0) == len(proj_mtx[0]), "Different number of images and projection matrices"
+        assert len(images) == intrinsics.size()[1], "Different number of images and intrinsic matrices"
+        assert len(images) == extrinsics.size()[1], 'Different number of images and extrinsic matrices'
+        images, intrinsics, orig_height, orig_width = adjust_image_dims(images, intrinsics)
+        ref_image = images[0]
+        _, _, ref_height, ref_width = ref_image.size()
 
         # step 1. Multi-scale feature extraction
         features: List[Dict[int, torch.Tensor]] = []
-        for img in imgs_0:
+        for img in images:
             output_feature = self.feature(img)
             features.append(output_feature)
-        del imgs_0
+        del images
         ref_feature, src_features = features[0], features[1:]
 
         depth_min = depth_min.float()
@@ -224,38 +217,48 @@ class PatchmatchNet(nn.Module):
         view_weights = torch.empty(0)
         depth_patchmatch: Dict[int, List[torch.Tensor]] = {}
 
+        scale = 0.125
         for stage in range(self.stages - 1, 0, -1):
             src_features_l = [src_fea[stage] for src_fea in src_features]
-            ref_proj, src_projs = proj_mtx[stage][0], proj_mtx[stage][1:]
+
+            # Create projection matrix for specific stage
+            intrinsics_l = intrinsics.clone()
+            intrinsics_l[:, :, :2] *= scale
+            proj = extrinsics.clone()
+            proj[:, :, :3, :4] = torch.matmul(intrinsics_l, extrinsics[:, :, :3, :4])
+            proj_l = torch.unbind(proj, 1)
+            ref_proj, src_proj = proj_l[0], proj_l[1:]
+            scale *= 2.0
+
             # Need conditional since TorchScript only allows "getattr" access with string literals
             if stage == 3:
-                depths, _, view_weights = self.patchmatch_3(
+                depths, score, view_weights = self.patchmatch_3(
                     ref_feature=ref_feature[stage],
                     src_features=src_features_l,
                     ref_proj=ref_proj,
-                    src_projs=src_projs,
+                    src_projs=src_proj,
                     depth_min=depth_min,
                     depth_max=depth_max,
                     depth=depth,
                     view_weights=view_weights,
                 )
             elif stage == 2:
-                depths, _, view_weights = self.patchmatch_2(
+                depths, score, view_weights = self.patchmatch_2(
                     ref_feature=ref_feature[stage],
                     src_features=src_features_l,
                     ref_proj=ref_proj,
-                    src_projs=src_projs,
+                    src_projs=src_proj,
                     depth_min=depth_min,
                     depth_max=depth_max,
                     depth=depth,
                     view_weights=view_weights,
                 )
             elif stage == 1:
-                depths, score, _ = self.patchmatch_1(
+                depths, score, view_weights = self.patchmatch_1(
                     ref_feature=ref_feature[stage],
                     src_features=src_features_l,
                     ref_proj=ref_proj,
-                    src_projs=src_projs,
+                    src_projs=src_proj,
                     depth_min=depth_min,
                     depth_max=depth_max,
                     depth=depth,
@@ -275,6 +278,9 @@ class PatchmatchNet(nn.Module):
 
         # step 3. Refinement
         depth = self.upsample_net(ref_image, depth, depth_min, depth_max)
+        if ref_width != orig_width or ref_height != orig_height:
+            depth = F.interpolate(depth, size=[orig_height, orig_width], mode='bilinear', align_corners=False)
+        depth_patchmatch[0] = [depth]
 
         if self.training:
             return depth, torch.empty(0), depth_patchmatch
@@ -288,15 +294,33 @@ class PatchmatchNet(nn.Module):
                 score, depth_values=torch.arange(num_depth, device=score.device, dtype=torch.float)
             ).long().clamp(0, num_depth - 1)
             photometric_confidence = torch.gather(score_sum4, 1, depth_index)
-            photometric_confidence = F.interpolate(photometric_confidence, scale_factor=2.0, mode="nearest").squeeze(1)
+            photometric_confidence = F.interpolate(
+                photometric_confidence, size=[orig_height, orig_width], mode="nearest").squeeze(1)
 
             return depth, photometric_confidence, depth_patchmatch
 
 
+def adjust_image_dims(
+        images: List[torch.Tensor], intrinsics: torch.Tensor) -> Tuple[List[torch.Tensor], torch.Tensor, int, int]:
+    # stretch or compress image slightly to ensure width and height are multiples of 8
+    _, _, ref_height, ref_width = images[0].size()
+    for i in range(len(images)):
+        _, _, height, width = images[i].size()
+        new_height = int(round(height / 8)) * 8
+        new_width = int(round(width / 8)) * 8
+        if new_width != width or new_height != height:
+            intrinsics[:, i, 0] *= new_width / width
+            intrinsics[:, i, 1] *= new_height / height
+            images[i] = nn.functional.interpolate(
+                images[i], size=[new_height, new_width], mode='bilinear', align_corners=False)
+
+    return images, intrinsics, ref_height, ref_width
+
+
 def patchmatchnet_loss(
     depth_patchmatch: Dict[int, List[torch.Tensor]],
-    depth_gt: Dict[str, torch.Tensor],
-    mask: Dict[str, torch.Tensor],
+    depth_gt: List[torch.Tensor],
+    mask: List[torch.Tensor],
 ) -> torch.Tensor:
     """Patchmatch Net loss function
 
@@ -310,9 +334,8 @@ def patchmatchnet_loss(
     """
     loss = 0
     for i in range(0, 4):
-        mask_i = mask[f"stage_{i}"] > 0.5
-        gt_depth = depth_gt[f"stage_{i}"][mask_i]
+        gt_depth = depth_gt[i][mask[i]]
         for depth in depth_patchmatch[i]:
-            loss = loss + F.smooth_l1_loss(depth[mask_i], gt_depth, reduction="mean")
+            loss = loss + F.smooth_l1_loss(depth[mask[i]], gt_depth, reduction="mean")
 
     return loss

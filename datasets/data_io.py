@@ -31,28 +31,12 @@ def scale_to_max_dim(image: np.ndarray, max_dim: int) -> Tuple[np.ndarray, int, 
     return image, original_height, original_width
 
 
-# def read_image(filename: str, max_dim: int = -1) -> Tuple[np.ndarray, int, int]:
-#     """Read image and rescale to specified max dimension (if exists)
-
-#     Args:
-#         filename: image input file path string
-#         max_dim: max dimension to scale down the image; keep original size if -1
-
-#     Returns:
-#         Tuple of scaled image along with original image height and width
-#     """
-#     image = Image.open(filename)
-#     # scale 0~255 to 0~1
-#     np_image = np.array(image, dtype=np.float32) / 255.0
-#     return scale_to_max_dim(np_image, max_dim)
-
-
-def read_image(filename: str, dim: Tuple[int, int] = (-1, -1)) -> Tuple[np.ndarray, int, int]:
-    """Read image and rescale to specified dimensions (if exists)
+def read_image(filename: str, max_dim: int = -1) -> Tuple[np.ndarray, int, int]:
+    """Read image and rescale to specified max dimension (if exists)
 
     Args:
         filename: image input file path string
-        dim: dimensions to scale down the image
+        max_dim: max dimension to scale down the image; keep original size if -1
 
     Returns:
         Tuple of scaled image along with original image height and width
@@ -60,12 +44,8 @@ def read_image(filename: str, dim: Tuple[int, int] = (-1, -1)) -> Tuple[np.ndarr
     image = Image.open(filename)
     # scale 0~255 to 0~1
     np_image = np.array(image, dtype=np.float32) / 255.0
-    original_height = np_image.shape[0]
-    original_width = np_image.shape[1]
-    if dim[0] > 0:
-        np_image = cv2.resize(np_image, dim, interpolation=cv2.INTER_LINEAR)
+    return scale_to_max_dim(np_image, max_dim)
 
-    return np_image, original_height, original_width
 
 def save_image(filename: str, image: np.ndarray) -> None:
     """Save images including binary mask (bool), float (0<= val <= 1), or int (as-is)
