@@ -140,7 +140,27 @@ root_directory
 │    │    └── ...
 │    └── pair.txt
 ├── Depths_raw
+│    ├── scan1
+│    │    ├── depth_map_0000.pfm
+│    │    ├── depth_visual_0000.png
+│    │    ├── depth_map_0001.pfm
+│    │    ├── depth_visual_0001.png
+│    │    └── ...
+│    ├── scan2
+│    └── ...
 └── Rectified
+     ├── scan1_train
+     │    ├── rect_001_0_r5000.png
+     │    ├── rect_001_1_r5000.png
+     │    ├── ...
+     │    ├── rect_001_6_r5000.png
+     │    ├── rect_002_0_r5000.png
+     │    ├── rect_002_1_r5000.png
+     │    ├── ...
+     │    ├── rect_002_6_r5000.png
+     │    └── ...
+     ├── scan2_train
+     └── ...
 ```
 To use this dataset directly look into the [Legacy Training](#legacy-training) section below. For the current version of training the
 dataset needs to be converted to a format compatible with `MVSDataset` in `./datasets/mvs.py` using the script
