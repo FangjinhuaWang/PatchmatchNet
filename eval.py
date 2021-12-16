@@ -314,7 +314,7 @@ if __name__ == "__main__":
                         choices=["depth", "fusion", "both"])
 
     # Dataset loading options
-    parser.add_argument("--num_views", type=int, default=2,
+    parser.add_argument("--num_views", type=int, default=20,
                         help="number of source views for each patch-match problem")
     parser.add_argument("--image_max_dim", type=int, default=-1, help="max image dimension")
     parser.add_argument("--scan_list", type=str, default="",
