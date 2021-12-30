@@ -211,10 +211,11 @@ class PatchmatchNet(nn.Module):
         depth_max = depth_max.float()
 
         # step 2. Learning-based patchmatch
-        depth = torch.empty(0)
+        device = intrinsics.device
+        depth = torch.empty(0, device=device)
         depths: List[torch.Tensor] = []
-        score = torch.empty(0)
-        view_weights = torch.empty(0)
+        score = torch.empty(0, device=device)
+        view_weights = torch.empty(0, device=device)
         depth_patchmatch: Dict[int, List[torch.Tensor]] = {}
 
         scale = 0.125
@@ -283,7 +284,7 @@ class PatchmatchNet(nn.Module):
         depth_patchmatch[0] = [depth]
 
         if self.training:
-            return depth, torch.empty(0), depth_patchmatch
+            return depth, torch.empty(0, device=device), depth_patchmatch
         else:
             num_depth = self.patchmatch_num_sample[0]
             score_sum4 = 4 * F.avg_pool3d(

@@ -34,7 +34,7 @@ class DepthInitialization(nn.Module):
         width: int,
         depth_interval_scale: float,
         device: torch.device,
-        depth: torch.Tensor = torch.empty(0),
+        depth: torch.Tensor
     ) -> torch.Tensor:
         """Forward function for depth initialization
 
@@ -151,8 +151,8 @@ class Evaluation(nn.Module):
         depth_sample: torch.Tensor,
         grid: torch.Tensor,
         weight: torch.Tensor,
-        view_weights: torch.Tensor = torch.empty(0),
-        is_inverse: bool = False
+        view_weights: torch.Tensor,
+        is_inverse: bool
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Forward method for adaptive evaluation
 
@@ -434,7 +434,7 @@ class PatchMatch(nn.Module):
         depth_min: torch.Tensor,
         depth_max: torch.Tensor,
         depth: torch.Tensor,
-        view_weights: torch.Tensor = torch.empty(0),
+        view_weights: torch.Tensor
     ) -> Tuple[List[torch.Tensor], torch.Tensor, torch.Tensor]:
         """Forward method for PatchMatch
 
@@ -457,14 +457,11 @@ class PatchMatch(nn.Module):
             view_weights: Tensor to store weights of source views, in shape of (B,Nview-1,H,W),
                 Nview-1 represents the number of source views
         """
-        score = torch.empty(0)
-        depth_samples = []
-
         device = ref_feature.device
         batch, _, height, width = ref_feature.size()
 
         # the learned additional 2D offsets for adaptive propagation
-        propa_grid = torch.empty(0)
+        propa_grid = torch.empty(0, device=device)
         if self.propagate_neighbors > 0 and not (self.stage == 1 and self.patchmatch_iteration == 1):
             # last iteration on stage 1 does not have propagation (photometric consistency filtering)
             propa_offset = self.propa_conv(ref_feature).view(batch, 2 * self.propagate_neighbors, height * width)
@@ -479,6 +476,8 @@ class PatchMatch(nn.Module):
         depth_sample = depth
         del depth
 
+        score = torch.empty(0, device=device)
+        depth_samples = []
         for iter in range(1, self.patchmatch_iteration + 1):
             is_inverse = self.stage == 1 and iter == self.patchmatch_iteration
 
