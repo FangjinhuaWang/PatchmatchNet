@@ -3,6 +3,7 @@ official source code of paper 'PatchmatchNet: Learned Multi-View Patchmatch Ster
 ![](imgs/structure_teaser.jpg)
 
 ## Updates
+- 19.05.2025: For those who want to reproduce the same results as our paper, please have a look at [this version](https://github.com/FangjinhuaWang/PatchmatchNet/tree/c6d2dce962be8109779afcdb3b79880d35ff9c83). The current checkpoint is re-trained by other contributors. 
 - 13.12.2021: New unified format for training and evaluation datasets, support for arbitrary image sizes
   and multi-camera setups, and new names for script parameters.
 - 27.09.2021: The code now allows for Torchscript export and includes a pre-trained TorchScript module.
